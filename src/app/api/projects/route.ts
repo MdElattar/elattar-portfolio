@@ -1,14 +1,5 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  typescript: {
-    // !! تحذير !!
-    // يسمح بإنهاء الـ Build بنجاح حتى لو كان المشروع يحتوي على أخطاء TypeScript.
-    ignoreBuildErrors: true,
-  },
-  eslint: {
-    // تجاهل أخطاء ESLint أيضاً أثناء الـ Build إن وجدت
-    ignoreDuringBuilds: true,
-  },
-};
+import { NextResponse } from "next/server";
 
-module.exports = nextConfig;    
+export async function GET() {
+  return NextResponse.json({ message: "Projects API route active" });
+}
