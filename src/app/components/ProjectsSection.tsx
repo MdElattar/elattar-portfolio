@@ -40,7 +40,6 @@ interface Project {
   rotatingWords?: string[]; 
 }
 
-// GitHub Repo Interface
 interface Repo {
   id: number;
   name: string;
@@ -69,7 +68,6 @@ export default function ProjectsSection() {
   const [activeTab, setActiveTab] = useState<"projects" | "developer">("projects");
   const [slideDirection, setSlideDirection] = useState<"left" | "right">("right");
 
-  // GitHub Data States (Real Data logic)
   const [githubStats, setGithubStats] = useState({ repos: 0, followers: 0, stars: 0, forks: 0 });
   const [githubRepos, setGithubRepos] = useState<Repo[]>([]);
   const [dynamicStreak, setDynamicStreak] = useState(0);
@@ -81,19 +79,6 @@ export default function ProjectsSection() {
 
   const rawMouseX = useMotionValue(0);
   const rawMouseY = useMotionValue(0);
-
-  const handleContainerMouseMove = (e: React.MouseEvent) => {
-    const el = sectionRef.current;
-    if (!el || window.innerWidth < 768) return;
-    const rect = el.getBoundingClientRect();
-    rawMouseX.set(e.clientX - rect.left - rect.width / 2);
-    rawMouseY.set(e.clientY - rect.top - rect.height / 2);
-  };
-
-  const handleContainerMouseLeave = () => {
-    rawMouseX.set(0);
-    rawMouseY.set(0);
-  };
 
   const availableFilters = [
     { id: "next", label: "Next.JS", icon: <span className="text-sm font-black text-white">N</span> },
@@ -116,7 +101,6 @@ export default function ProjectsSection() {
     );
   };
 
-  // NOTE: Developer tab is temporarily locked to prioritize portfolio deployment
   const handleTabChange = (tab: "projects" | "developer") => {
     if (tab === "developer") {
       alert("Developer section is temporarily locked until the main portfolio is fully deployed.");
@@ -316,10 +300,6 @@ export default function ProjectsSection() {
     return matchesSearch && matchesFilters;
   });
 
-  const getCommitsForYear = (year: number) => {
-    return commitsMap[year] || 0; 
-  };
-
   return (
     <section 
       ref={sectionRef} 
@@ -328,7 +308,6 @@ export default function ProjectsSection() {
     >
       <SpaceBackground />
 
-      {/* Preloader matching Home preloader exactly */}
       <AnimatePresence>
         {showPreloader && (
           <motion.div 
@@ -364,7 +343,6 @@ export default function ProjectsSection() {
             >
               <span className="text-sm">📁</span> Projects
             </button>
-            {/* Developer tab button is temporarily locked to prioritize portfolio deployment */}
             <button 
               onClick={() => handleTabChange("developer")} 
               className="flex items-center gap-2 px-4 py-2 rounded-full font-mono text-[9px] uppercase tracking-widest text-neutral-600 border border-transparent opacity-50 cursor-not-allowed"
@@ -377,7 +355,6 @@ export default function ProjectsSection() {
 
         <div className="w-full relative overflow-visible min-h-[600px]">
           <AnimatePresence mode="wait" custom={slideDirection}>
-            
             {activeTab === "projects" ? (
               <motion.div
                 key="projects-tab"
@@ -393,7 +370,6 @@ export default function ProjectsSection() {
                 </div>
 
                 <div className="w-full mb-10 flex flex-col gap-5 items-start text-left">
-                  
                   <div className="w-full relative group">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-500 text-lg group-focus-within:text-white transition-colors">⚲</span>
                     <input 

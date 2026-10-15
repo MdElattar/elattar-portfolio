@@ -92,7 +92,7 @@ const TypewriterText = ({ text, delay }: { text: string; delay: number }) => {
 
   const childVariants = {
     hidden: { opacity: 0, x: -5 },
-    visible: { opacity: 1, x: 0, transition: { type: "spring", damping: 12 } },
+    visible: { opacity: 1, x: 0, transition: { type: "spring" as const, damping: 12 } },
   };
 
   return (
@@ -300,7 +300,6 @@ export default function HeroScene({ isVisible }: HeroSceneProps) {
                     </div>
                     <h3 className="text-lg sm:text-xl md:text-2xl lg:text-4xl font-black text-white uppercase font-sans tracking-tight leading-none">SYSTEM ARCHITECTURE & PROTOCOLS</h3>
 
-                    {/* 💡 تم تعديل النصوص البرمجية لتعكس بناء E-commerce والروتين اللليلي */}
                     <div className="bg-[#050505] border border-neutral-800 p-2.5 sm:p-3 lg:p-4 rounded-xl font-mono text-[7px] sm:text-[7.5px] md:text-[8.5px] lg:text-xs text-neutral-400 space-y-1 sm:space-y-1.5 lg:space-y-2 relative overflow-hidden group shadow-inner min-h-[100px] sm:min-h-[110px] md:min-h-[120px] lg:min-h-[160px]">
                        <div className="absolute top-0 left-0 w-1 h-full bg-blue-500 opacity-50 group-hover:opacity-100 transition-opacity" />
                        <p><span className="text-blue-500 font-bold">root@core:~#</span> ./deploy_infrastructure.sh</p>
@@ -320,7 +319,6 @@ export default function HeroScene({ isVisible }: HeroSceneProps) {
                     <span className="text-[7.5px] sm:text-[8px] lg:text-[9px] text-neutral-500 uppercase tracking-widest">// SYSTEM METRICS & ARSENAL</span>
 
                     <div className="space-y-1.5 sm:space-y-2 lg:space-y-4">
-                       {/* 💡 تم تعديل مقاييس الجودة والنسب المئوية بناءً على تعليماتك */}
                        {[
                          { label: "PERFORMANCE (CORE WEB VITALS)", val: 98, color: "bg-blue-500" },
                          { label: "ACCESSIBILITY (A11Y)", val: 100, color: "bg-emerald-500" },

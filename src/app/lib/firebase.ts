@@ -1,7 +1,7 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { getFirestore } from "firebase/firestore"; // 🔥 إضافة الفايرستور
-import { getStorage } from "firebase/storage";   // 🔥 إضافة الاستورج
+import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -23,12 +23,11 @@ if (getApps().length === 0) {
   app = getApp();
 }
 
-// تهيئة الخدمات بأمان (لو الـ app مش موجود هيرجع null لتجنب كراش الـ Build)
 const auth = app ? getAuth(app) : null as any;
-const db = app ? getFirestore(app) : null as any;       // 🔥 تصدير الداتابيز بأمان
-const storage = app ? getStorage(app) : null as any;   // 🔥 تصدير الاستورج بأمان
+const db = app ? getFirestore(app) : null as any;
+const storage = app ? getStorage(app) : null as any;
 
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
-export { app, auth, db, storage, googleProvider }; // 🔥 تصدير الكل هنا
+export { app, auth, db, storage, googleProvider };

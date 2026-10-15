@@ -24,7 +24,6 @@ interface SkillsTerminalProps {
 const springConfig = { damping: 20, stiffness: 150, mass: 0.5 };
 const cardSpringConfig = { damping: 15, stiffness: 120 };
 
-// ─── SAFE WEB AUDIO SYNTHESIS (NO AUDIO_CONTEXT BLOCKING) ───
 const playCyberSound = (type: "hover" | "click" | "filter") => {
   if (typeof window === "undefined") return;
   try {
@@ -66,7 +65,6 @@ const playCyberSound = (type: "hover" | "click" | "filter") => {
   } catch (e) {}
 };
 
-// ─── DECRYPTING GLITCH TEXT EFFECT ───
 const GlitchText = memo(({ text, triggered }: { text: string; triggered: boolean }) => {
   const [displayText, setDisplayText] = useState(text || "");
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_@#$";
@@ -102,7 +100,6 @@ const GlitchText = memo(({ text, triggered }: { text: string; triggered: boolean
 });
 GlitchText.displayName = "GlitchText";
 
-// ─── MICRO SKILL CARD WITH 3D HOVER NEON EFFECTS ───
 const SkillCard = memo(({ tech }: { tech: TechItem }) => {
   const [isHovered, setIsHovered] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -216,7 +213,6 @@ const SkillCard = memo(({ tech }: { tech: TechItem }) => {
 });
 SkillCard.displayName = "SkillCard";
 
-// ─── MAIN SKILLS TERMINAL COMPONENT ───
 export default function SkillsTerminal({ isVisible }: SkillsTerminalProps) {
   const [stage, setStage] = useState<"title" | "grid" | "idle">("idle");
   const [activeFilter, setActiveFilter] = useState<"all" | "frontend" | "backend" | "database" | "tools">("all");
@@ -325,7 +321,6 @@ export default function SkillsTerminal({ isVisible }: SkillsTerminalProps) {
         <SpaceBackground />
       </div>
 
-      {/* Preloader matching Home and Projects preloader exactly */}
       {mounted && typeof document !== "undefined" && createPortal(
         <AnimatePresence>
           {stage === "title" && (
