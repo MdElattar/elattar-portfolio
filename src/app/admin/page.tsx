@@ -72,11 +72,6 @@ interface MediaField {
   preview: string;
 }
 
-interface RotatingWord {
-  id: number;
-  text: string;
-}
-
 const initialFormState = {
   title: "",
   desc: "",
@@ -107,9 +102,6 @@ export default function AdminPage() {
   // --- Dynamic Media Form States (Optional & Multiple) ---
   const [imageFields, setImageFields] = useState<MediaField[]>([]);
   const [videoFields, setVideoFields] = useState<MediaField[]>([]);
-
-  // --- Rotating Words State ---
-  const [rotatingWords, setRotatingWords] = useState<RotatingWord[]>([{ id: Date.now(), text: "" }]);
 
   // --- Core Form States ---
   const [formData, setFormData] = useState(initialFormState);
@@ -198,32 +190,33 @@ export default function AdminPage() {
     else setVideoFields(updateBlock);
   };
 
-  // Rotating Word Controls
-  const addRotatingWord = () => {
-    setRotatingWords(prev => [...prev, { id: Date.now(), text: "" }]);
-  };
 
-  const removeRotatingWord = (id: number) => {
-    if (rotatingWords.length > 1) {
-      setRotatingWords(prev => prev.filter(word => word.id !== id));
-    } else {
-      pushLog("SYSTEM: Cannot purge the last rotating word node.", "warn");
-    }
-  };
 
-  const handleRotatingWordChange = (id: number, value: string) => {
-    setRotatingWords(prev => prev.map(word => word.id === id ? { ...word, text: value } : word));
-  };
 
-  // Tab Button Component Helper
-  const TabBtn = ({ id, label }: { id: typeof activeTab, label: string }) => (
-    <button 
-      onClick={() => { setActiveTab(id); pushLog(`VIEW_BRIDGE: Shifted operation context view to [${id.toUpperCase()}]`); }} 
-      className={`px-3 py-2 font-mono text-[10px] rounded-lg tracking-wider transition-all border cursor-pointer ${activeTab === id ? "bg-white text-black border-white font-bold" : "bg-[#0c0c0c] text-neutral-400 border-neutral-900 hover:text-white"}`}
-    >
-      {label}
-    </button>
-  );
+  // State لإدارة الكلمات المتحركة
+const [rotatingWords, setRotatingWords] = useState([{ id: Date.now(), text: "" }]);
+
+// دوال التحكم في الكلمات
+const addRotatingWord = () => {
+  setRotatingWords([...rotatingWords, { id: Date.now(), text: "" }]);
+};
+
+const removeRotatingWord = (id: number) => {
+  if (rotatingWords.length > 1) {
+    setRotatingWords(rotatingWords.filter(word => word.id !== id));
+  } else {
+ 
+    pushLog("SYSTEM: Cannot purge the last rotating word node.");
+};
+}
+
+const handleRotatingWordChange = (id: number, value: string) => {
+  setRotatingWords(rotatingWords.map(word => 
+    word.id === id ? { ...word, text: value } : word
+  ));
+};
+
+
 
   // Idle Timer Security Lock Mechanism
   useEffect(() => {
@@ -262,7 +255,7 @@ export default function AdminPage() {
           tech: data.tech || "",
           image: data.image || "",
           images: data.images || [],
-          videoUrl: data.videoUrl || "",
+          videoUrl: data.videoUrl || undefined,
           videos: data.videos || [],
           liveLink: data.liveLink || "",
           githubLink: data.githubLink || "",
@@ -381,6 +374,7 @@ export default function AdminPage() {
     pushLog("INJECTION: Preparing multiple-media asset cluster pipeline deployment...", "info");
 
     try {
+      // Process Multiple Dynamic Images
       const resolvedImages: string[] = [];
       for (const f of imageFields) {
         if (f.type === "file" && f.file) {
@@ -391,6 +385,7 @@ export default function AdminPage() {
         }
       }
 
+      // Process Multiple Dynamic Videos
       const resolvedVideos: string[] = [];
       for (const f of videoFields) {
         if (f.type === "file" && f.file) {
@@ -402,23 +397,22 @@ export default function AdminPage() {
       }
 
       const primaryImage = resolvedImages[0] || "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=600";
-      const primaryVideo = resolvedVideos[0] || ""; // آمن تماماً ضد الـ undefined
+      const primaryVideo = resolvedVideos[0] || undefined;
 
       const newProject = {
-        title: formData.title || "",
-        desc: formData.desc || "",
-        tech: (formData.tech || "").toUpperCase(),
+        title: formData.title,
+        desc: formData.desc,
+        tech: formData.tech.toUpperCase(),
         image: primaryImage,
         images: resolvedImages,
         videoUrl: primaryVideo,
         videos: resolvedVideos,
-        liveLink: formData.liveLink || "",
-        githubLink: formData.githubLink || "",
+        liveLink: formData.liveLink,
+        githubLink: formData.githubLink,
         views: 0,
         liveClicks: 0,
         codeClicks: 0,
-        reviews: [],
-        rotatingWords: rotatingWords.map(w => w.text).filter(t => t.trim() !== "")
+        reviews: []
       };
 
       await addDoc(collection(db, "projects"), newProject);
@@ -431,7 +425,6 @@ export default function AdminPage() {
         setFormData(initialFormState);
         setImageFields([]);
         setVideoFields([]);
-        setRotatingWords([{ id: Date.now(), text: "" }]);
         setActiveTab("manage"); 
       }, 2000);
       
@@ -510,6 +503,7 @@ export default function AdminPage() {
     });
   };
 
+  // Export Analytics Dataset Routine
   const handleExportRegistry = () => {
     try {
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ projects, bookings, exportedAt: new Date().toISOString() }, null, 2));
@@ -526,6 +520,7 @@ export default function AdminPage() {
     }
   };
 
+  // --- Memoized Derived Data ---
   const stats = useMemo(() => {
     return projects.reduce((acc, p) => ({
       views: acc.views + (p.views || 0),
@@ -537,6 +532,16 @@ export default function AdminPage() {
   const allReviews = useMemo(() => {
     return projects.flatMap(p => p.reviews.map(r => ({ ...r, projectId: p.id, projectTitle: p.title })));
   }, [projects]);
+
+  // --- Render Helpers ---
+  const TabBtn = ({ id, label }: { id: typeof activeTab, label: string }) => (
+    <button 
+      onClick={() => { setActiveTab(id); pushLog(`VIEW_BRIDGE: Shifted operation context view to [${id.toUpperCase()}]`); }} 
+      className={`px-3 py-2 font-mono text-[10px] rounded-lg tracking-wider transition-all border cursor-pointer ${activeTab === id ? "bg-white text-black border-white font-bold" : "bg-[#0c0c0c] text-neutral-400 border-neutral-900 hover:text-white"}`}
+    >
+      {label}
+    </button>
+  );
 
   if (loading) {
     return (
@@ -617,6 +622,7 @@ export default function AdminPage() {
         <div>
           <div className="flex items-center gap-3 mb-1">
             <p className={`font-mono text-[9px] tracking-[0.3em] uppercase font-bold ${accent.text}`}>// Core Admin Analytics Matrix</p>
+            {/* Neon Accent Switcher */}
             <div className="flex bg-neutral-950 border border-neutral-900 rounded p-0.5 text-[8px] font-mono gap-1">
               <button onClick={() => { setAccentColor("blue"); pushLog("THEME: Accent color shifted to Cyber Blue."); }} className={`px-1.5 py-0.5 rounded cursor-pointer ${accentColor === "blue" ? "bg-blue-600 text-white" : "text-neutral-600"}`}>BLUE</button>
               <button onClick={() => { setAccentColor("green"); pushLog("THEME: Accent color shifted to Matrix Green."); }} className={`px-1.5 py-0.5 rounded cursor-pointer ${accentColor === "green" ? "bg-emerald-600 text-white" : "text-neutral-600"}`}>GREEN</button>
@@ -959,12 +965,15 @@ export default function AdminPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {bookings.map((booking) => {
                     const isCall = booking.type === "CALL_RESERVATION";
+                    
+                    // Pre-compiled quick messages
                     const emailSubject = encodeURIComponent("Matrix Connection: Transmission Response");
                     const emailBody = encodeURIComponent(`Hello Operator,\nWe processed your packet transmission context from database logs.\n\nBest regards,\nAdmin Terminal`);
                     const whatsappMsg = encodeURIComponent("Greetings, we traced your connection packet from our matrix dashboard. Let's arrange a secure link sync.");
 
                     return (
                       <div key={booking.id} className={`bg-[#090909] border ${isCall ? "border-emerald-950/60" : "border-blue-950/60"} p-5 rounded-xl flex flex-col justify-between gap-4 shadow-xl relative overflow-hidden`}>
+                        
                         <div className="space-y-3">
                           <div className="flex items-center justify-between">
                             <span className={`font-mono text-[9px] font-bold px-2 py-0.5 rounded border ${isCall ? "bg-emerald-950/40 text-emerald-400 border-emerald-900/50" : "bg-blue-950/40 text-blue-400 border-blue-900/50"}`}>
@@ -1000,6 +1009,7 @@ export default function AdminPage() {
                           )}
                         </div>
 
+                        {/* Quick Response Action Bridge */}
                         <div className="pt-2 border-t border-neutral-900 flex items-center justify-between gap-2 flex-wrap">
                           <div className="flex gap-2 font-mono text-[8px]">
                             <a 
@@ -1029,6 +1039,7 @@ export default function AdminPage() {
                             DESTRUCT PACKET
                           </button>
                         </div>
+
                       </div>
                     );
                   })}
