@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { initializeFirestore } from "firebase/firestore";
+import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
@@ -24,10 +24,7 @@ if (getApps().length === 0) {
 }
 
 const auth = app ? getAuth(app) : null as any;
-
-// التعديل الوحيد هنا: استخدام initializeFirestore لمنع خطأ undefined في Firestore
-const db = app ? initializeFirestore(app, { ignoreUndefinedProperties: true }) : null as any;
-
+const db = app ? getFirestore(app) : null as any;
 const storage = app ? getStorage(app) : null as any;
 
 const googleProvider = new GoogleAuthProvider();
