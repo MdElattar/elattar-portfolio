@@ -374,7 +374,7 @@ export default function AdminPage() {
     return resData.url; 
   };
 
-  const handleSubmitProject = async (e: React.FormEvent) => {
+const handleSubmitProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!db) return;
     setUploading(true);
@@ -385,8 +385,8 @@ export default function AdminPage() {
       for (const f of imageFields) {
         if (f.type === "file" && f.file) {
           const url = await uploadToCloudinary(f.file);
-          resolvedImages.push(url);
-        } else if (f.type === "url" && f.url.trim()) {
+          if (url) resolvedImages.push(url);
+        } else if (f.type === "url" && f.url && f.url.trim() !== "") {
           resolvedImages.push(f.url.trim());
         }
       }
@@ -395,16 +395,20 @@ export default function AdminPage() {
       for (const f of videoFields) {
         if (f.type === "file" && f.file) {
           const url = await uploadToCloudinary(f.file);
-          resolvedVideos.push(url);
-        } else if (f.type === "url" && f.url.trim()) {
+          if (url) resolvedVideos.push(url);
+        } else if (f.type === "url" && f.url && f.url.trim() !== "") {
           resolvedVideos.push(f.url.trim());
         }
       }
 
       const primaryImage = resolvedImages[0] || "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=600";
-      const primaryVideo = resolvedVideos[0] || ""; // آمن تماماً ضد الـ undefined
+      const primaryVideo = resolvedVideos[0] || ""; 
 
-      const newProject = {
+      // تنظیف الروابط وضمان مطابقتها للنمط المطلوب
+      const cleanLiveLink = formData.liveLink?.trim() !== "" ? formData.liveLink.trim() : "https://example.com";
+      const cleanGithubLink = formData.githubLink?.trim() !== "" ? formData.githubLink.trim() : "https://github.com";
+
+      const rawProject = {
         title: formData.title || "",
         desc: formData.desc || "",
         tech: (formData.tech || "").toUpperCase(),
@@ -412,14 +416,19 @@ export default function AdminPage() {
         images: resolvedImages,
         videoUrl: primaryVideo,
         videos: resolvedVideos,
-        liveLink: formData.liveLink || "",
-        githubLink: formData.githubLink || "",
+        liveLink: cleanLiveLink,
+        githubLink: cleanGithubLink,
         views: 0,
         liveClicks: 0,
         codeClicks: 0,
         reviews: [],
         rotatingWords: rotatingWords.map(w => w.text).filter(t => t.trim() !== "")
       };
+
+      // تطهير الكائن نهائياً وإزالة أي قيم غير معرفة (undefined) قد تسبب انهيار addDoc
+      const newProject = JSON.parse(
+        JSON.stringify(rawProject, (key, value) => (value === undefined ? "" : value))
+      );
 
       await addDoc(collection(db, "projects"), newProject);
       setIsSuccess(true);
@@ -437,12 +446,12 @@ export default function AdminPage() {
       
     } catch (error: any) {
       console.error("Matrix deployment failed:", error);
-      showToast(`DEPLOYMENT_FAILED: ${error.message}`, "error");
+      showToast(`DEPLOYMENT_FAILED: ${error.message || "Invalid pattern"}`, "error");
       pushLog(`DEPLOY_CRITICAL: Injection rejected: ${error.message}`, "crit");
     } finally {
       setUploading(false);
     }
-  };
+};
 
   const handleAdminDeleteReview = (projectId: string, reviewToRemove: Review) => {
     setConfirmDialog({
