@@ -736,8 +736,7 @@ const handleRotatingWordChange = (id: number, value: string) => {
                       ))}
                     </div>
                   </div>
-
-                  {/* DYNAMIC & OPTIONAL IMAGES INPUT BLOCK */}
+{/* DYNAMIC & OPTIONAL IMAGES INPUT BLOCK */}
                   <div className="space-y-4 border border-dashed border-neutral-900 p-4 rounded-xl">
                     <div className="flex items-center justify-between">
                       <span className="text-[9px] font-mono text-neutral-400 uppercase tracking-widest">// Optional Image Nodes</span>
@@ -757,7 +756,7 @@ const handleRotatingWordChange = (id: number, value: string) => {
                           </div>
                         </div>
                         {field.type === "url" ? (
-                          <input type="url" value={field.url} onChange={(e) => handleDynamicUrlChange(e.target.value, field.id, "image")} className="w-full bg-[#0d0d0d] border border-neutral-900 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none" placeholder="https://image-source.com/..." />
+                          <input type="text" value={field.url} onChange={(e) => handleDynamicUrlChange(e.target.value, field.id, "image")} className="w-full bg-[#0d0d0d] border border-neutral-900 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none" placeholder="https://image-source.com/..." />
                         ) : (
                           <input type="file" accept="image/*" onChange={(e) => handleDynamicFileChange(e, field.id, "image")} className="w-full bg-[#0d0d0d] border border-neutral-900 rounded-lg px-3 py-1.5 text-xs text-neutral-500 file:bg-neutral-900 file:text-white file:border-0 file:text-[8px] file:font-mono file:rounded file:px-3 file:py-1 cursor-pointer" />
                         )}
@@ -785,7 +784,7 @@ const handleRotatingWordChange = (id: number, value: string) => {
                           </div>
                         </div>
                         {field.type === "url" ? (
-                          <input type="url" value={field.url} onChange={(e) => handleDynamicUrlChange(e.target.value, field.id, "video")} className="w-full bg-[#0d0d0d] border border-neutral-900 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none" placeholder="https://video-source.com/..." />
+                          <input type="text" value={field.url} onChange={(e) => handleDynamicUrlChange(e.target.value, field.id, "video")} className="w-full bg-[#0d0d0d] border border-neutral-900 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none" placeholder="https://video-source.com/..." />
                         ) : (
                           <input type="file" accept="video/*" onChange={(e) => handleDynamicFileChange(e, field.id, "video")} className="w-full bg-[#0d0d0d] border border-neutral-900 rounded-lg px-3 py-1.5 text-xs text-neutral-500 file:bg-neutral-900 file:text-white file:border-0 file:text-[8px] file:font-mono file:rounded file:px-3 file:py-1 cursor-pointer" />
                         )}
@@ -796,11 +795,11 @@ const handleRotatingWordChange = (id: number, value: string) => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-[8px] font-mono text-neutral-500 mb-2 uppercase tracking-widest">Live Link</label>
-                      <input type="url" name="liveLink" required value={formData.liveLink} onChange={handleInputChange} className="w-full bg-[#0d0d0d] border border-neutral-900 rounded-xl px-4 py-3.5 text-xs font-mono focus:outline-none focus:border-neutral-700" placeholder="https://" />
+                      <input type="text" name="liveLink" required value={formData.liveLink} onChange={handleInputChange} className="w-full bg-[#0d0d0d] border border-neutral-900 rounded-xl px-4 py-3.5 text-xs font-mono focus:outline-none focus:border-neutral-700" placeholder="https://" />
                     </div>
                     <div>
                       <label className="block text-[8px] font-mono text-neutral-500 mb-2 uppercase tracking-widest">GitHub Link</label>
-                      <input type="url" name="githubLink" required value={formData.githubLink} onChange={handleInputChange} className="w-full bg-[#0d0d0d] border border-neutral-900 rounded-xl px-4 py-3.5 text-xs font-mono focus:outline-none focus:border-neutral-700" placeholder="https://" />
+                      <input type="text" name="githubLink" required value={formData.githubLink} onChange={handleInputChange} className="w-full bg-[#0d0d0d] border border-neutral-900 rounded-xl px-4 py-3.5 text-xs font-mono focus:outline-none focus:border-neutral-700" placeholder="https://" />
                     </div>
                   </div>
 
