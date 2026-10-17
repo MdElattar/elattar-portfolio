@@ -358,12 +358,34 @@ const handleRotatingWordChange = (id: number, value: string) => {
     }
   };
 
-  const uploadToCloudinary = async (file: File) => {
+ const uploadToCloudinary = async (file: File) => {
+    // التحقق المسبق من حجم الملف (أقل من 10 ميجابايت) لمنع تجاوز حدود السيرفر
+    if (file.size > 10 * 1024 * 1024) {
+      throw new Error(`حجم الملف (${(file.size / (1024 * 1024)).toFixed(1)}MB) يتجاوز الحد المسموح (10MB). يرجى اختيار ملف أصغر.`);
+    }
+
     const data = new FormData();
     data.append("file", file);
+    
     const response = await fetch("/api/upload", { method: "POST", body: data });
-    const resData = await response.json();
-    if (!response.ok) throw new Error(resData.error || "Upload failed");
+    
+    // قراءة الرد كنص أولاً لتجنب انهيار JSON.parse إذا أرجع السيرفر صفحة خطأ HTML
+    const textResult = await response.text();
+    let resData: any = {};
+    
+    try {
+      resData = JSON.parse(textResult);
+    } catch (e) {
+      if (response.status === 413) {
+        throw new Error("حجم الملف كبير جداً بالنسبة لسيرفر Vercel (Content Too Large). يرجى رفع فيديو أقل من 4.5MB.");
+      }
+      throw new Error("حدث خطأ غير متوقع في السيرفر أثناء رفع الملف.");
+    }
+
+    if (!response.ok) {
+      throw new Error(resData.error || "فشلت عملية الرفع إلى السحابة.");
+    }
+    
     return resData.url; 
   };
 
