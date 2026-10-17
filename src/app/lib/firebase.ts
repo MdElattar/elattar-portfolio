@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore, ignoreUndefinedProperties } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
@@ -24,7 +24,10 @@ if (getApps().length === 0) {
 }
 
 const auth = app ? getAuth(app) : null as any;
-const db = app ? getFirestore(app) : null as any;
+
+// استخدام initializeFirestore مع تفعيل ignoreUndefinedProperties لحل مشاكل الـ undefined تلقائياً
+const db = app ? initializeFirestore(app, { ignoreUndefinedProperties: true }) : null as any;
+
 const storage = app ? getStorage(app) : null as any;
 
 const googleProvider = new GoogleAuthProvider();

@@ -190,33 +190,27 @@ export default function AdminPage() {
     else setVideoFields(updateBlock);
   };
 
+  // --- State لإدارة الكلمات المتحركة ---
+  const [rotatingWords, setRotatingWords] = useState([{ id: Date.now(), text: "" }]);
 
+  // --- دوال التحكم في الكلمات ---
+  const addRotatingWord = () => {
+    setRotatingWords([...rotatingWords, { id: Date.now(), text: "" }]);
+  };
 
+  const removeRotatingWord = (id: number) => {
+    if (rotatingWords.length > 1) {
+      setRotatingWords(rotatingWords.filter(word => word.id !== id));
+    } else {
+      pushLog("SYSTEM: Cannot purge the last rotating word node.", "warn");
+    }
+  };
 
-  // State لإدارة الكلمات المتحركة
-const [rotatingWords, setRotatingWords] = useState([{ id: Date.now(), text: "" }]);
-
-// دوال التحكم في الكلمات
-const addRotatingWord = () => {
-  setRotatingWords([...rotatingWords, { id: Date.now(), text: "" }]);
-};
-
-const removeRotatingWord = (id: number) => {
-  if (rotatingWords.length > 1) {
-    setRotatingWords(rotatingWords.filter(word => word.id !== id));
-  } else {
- 
-    pushLog("SYSTEM: Cannot purge the last rotating word node.");
-};
-}
-
-const handleRotatingWordChange = (id: number, value: string) => {
-  setRotatingWords(rotatingWords.map(word => 
-    word.id === id ? { ...word, text: value } : word
-  ));
-};
-
-
+  const handleRotatingWordChange = (id: number, value: string) => {
+    setRotatingWords(rotatingWords.map(word => 
+      word.id === id ? { ...word, text: value } : word
+    ));
+  };
 
   // Idle Timer Security Lock Mechanism
   useEffect(() => {
@@ -550,6 +544,9 @@ const handleRotatingWordChange = (id: number, value: string) => {
       </div>
     );
   }
+
+  // (باقي أكواد العرض الواجهة UI يمكن إضافتها هنا حسب الحاجة دون أي تعديل جوهري)
+}
 
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans p-4 md:p-12 overflow-x-hidden relative">
