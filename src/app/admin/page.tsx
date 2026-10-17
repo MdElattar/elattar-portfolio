@@ -374,46 +374,52 @@ const handleRotatingWordChange = (id: number, value: string) => {
     pushLog("INJECTION: Preparing multiple-media asset cluster pipeline deployment...", "info");
 
     try {
-      // Process Multiple Dynamic Images
+      // 1. معالجة الصور الديناميكية
       const resolvedImages: string[] = [];
       for (const f of imageFields) {
         if (f.type === "file" && f.file) {
           const url = await uploadToCloudinary(f.file);
-          resolvedImages.push(url);
-        } else if (f.type === "url" && f.url.trim()) {
+          if (url) resolvedImages.push(url);
+        } else if (f.type === "url" && f.url && f.url.trim() !== "") {
           resolvedImages.push(f.url.trim());
         }
       }
 
-      // Process Multiple Dynamic Videos
+      // 2. معالجة الفيديوهات الديناميكية
       const resolvedVideos: string[] = [];
       for (const f of videoFields) {
         if (f.type === "file" && f.file) {
           const url = await uploadToCloudinary(f.file);
-          resolvedVideos.push(url);
-        } else if (f.type === "url" && f.url.trim()) {
+          if (url) resolvedVideos.push(url);
+        } else if (f.type === "url" && f.url && f.url.trim() !== "") {
           resolvedVideos.push(f.url.trim());
         }
       }
 
       const primaryImage = resolvedImages[0] || "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=600";
-      const primaryVideo = resolvedVideos[0] || undefined;
+      const primaryVideo = resolvedVideos[0] || ""; 
 
-      const newProject = {
-        title: formData.title,
-        desc: formData.desc,
-        tech: formData.tech.toUpperCase(),
+      const rawProject = {
+        title: formData.title || "",
+        desc: formData.desc || "",
+        tech: (formData.tech || "").toUpperCase(),
         image: primaryImage,
         images: resolvedImages,
         videoUrl: primaryVideo,
         videos: resolvedVideos,
-        liveLink: formData.liveLink,
-        githubLink: formData.githubLink,
+        liveLink: formData.liveLink || "https://example.com",
+        githubLink: formData.githubLink || "https://github.com",
         views: 0,
         liveClicks: 0,
         codeClicks: 0,
-        reviews: []
+        reviews: [],
+        rotatingWords: rotatingWords.map(w => w.text).filter(t => t.trim() !== "")
       };
+
+      // تطهير الكائن تماماً لضمان عدم وجود أي undefined
+      const newProject = JSON.parse(
+        JSON.stringify(rawProject, (key, value) => (value === undefined ? "" : value))
+      );
 
       await addDoc(collection(db, "projects"), newProject);
       setIsSuccess(true);
@@ -425,12 +431,13 @@ const handleRotatingWordChange = (id: number, value: string) => {
         setFormData(initialFormState);
         setImageFields([]);
         setVideoFields([]);
+        setRotatingWords([{ id: Date.now(), text: "" }]);
         setActiveTab("manage"); 
       }, 2000);
       
     } catch (error: any) {
       console.error("Matrix deployment failed:", error);
-      showToast(`DEPLOYMENT_FAILED: ${error.message}`, "error");
+      showToast(`DEPLOYMENT_FAILED: ${error.message || "Invalid input pattern"}`, "error");
       pushLog(`DEPLOY_CRITICAL: Injection rejected: ${error.message}`, "crit");
     } finally {
       setUploading(false);
