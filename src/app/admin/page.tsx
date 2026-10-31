@@ -353,7 +353,7 @@ export default function AdminPage() {
 
   // --- UPDATED: Client-Side Direct Upload to Cloudinary (Bypasses Vercel 4.5MB Limit) ---
   const uploadToCloudinary = async (file: File) => {
-    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dutmccrf6";
+    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dutmcc0rf6";
     const uploadPreset = "cyber_portfolio_preset"; // Preset created in Cloudinary
 
     const data = new FormData();
