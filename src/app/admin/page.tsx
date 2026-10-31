@@ -190,33 +190,26 @@ export default function AdminPage() {
     else setVideoFields(updateBlock);
   };
 
-
-
-
   // State لإدارة الكلمات المتحركة
-const [rotatingWords, setRotatingWords] = useState([{ id: Date.now(), text: "" }]);
+  const [rotatingWords, setRotatingWords] = useState([{ id: Date.now(), text: "" }]);
 
-// دوال التحكم في الكلمات
-const addRotatingWord = () => {
-  setRotatingWords([...rotatingWords, { id: Date.now(), text: "" }]);
-};
+  const addRotatingWord = () => {
+    setRotatingWords([...rotatingWords, { id: Date.now(), text: "" }]);
+  };
 
-const removeRotatingWord = (id: number) => {
-  if (rotatingWords.length > 1) {
-    setRotatingWords(rotatingWords.filter(word => word.id !== id));
-  } else {
- 
-    pushLog("SYSTEM: Cannot purge the last rotating word node.");
-};
-}
+  const removeRotatingWord = (id: number) => {
+    if (rotatingWords.length > 1) {
+      setRotatingWords(rotatingWords.filter(word => word.id !== id));
+    } else {
+      pushLog("SYSTEM: Cannot purge the last rotating word node.");
+    }
+  };
 
-const handleRotatingWordChange = (id: number, value: string) => {
-  setRotatingWords(rotatingWords.map(word => 
-    word.id === id ? { ...word, text: value } : word
-  ));
-};
-
-
+  const handleRotatingWordChange = (id: number, value: string) => {
+    setRotatingWords(rotatingWords.map(word => 
+      word.id === id ? { ...word, text: value } : word
+    ));
+  };
 
   // Idle Timer Security Lock Mechanism
   useEffect(() => {
@@ -358,35 +351,31 @@ const handleRotatingWordChange = (id: number, value: string) => {
     }
   };
 
- const uploadToCloudinary = async (file: File) => {
-    // التحقق المسبق من حجم الملف (أقل من 10 ميجابايت) لمنع تجاوز حدود السيرفر
-    if (file.size > 10 * 1024 * 1024) {
-      throw new Error(`حجم الملف (${(file.size / (1024 * 1024)).toFixed(1)}MB) يتجاوز الحد المسموح (10MB). يرجى اختيار ملف أصغر.`);
-    }
+  // --- UPDATED: Client-Side Direct Upload to Cloudinary (Bypasses Vercel 4.5MB Limit) ---
+  const uploadToCloudinary = async (file: File) => {
+    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dutmccrf6";
+    const uploadPreset = "cyber_portfolio_preset"; // Preset created in Cloudinary
 
     const data = new FormData();
     data.append("file", file);
-    
-    const response = await fetch("/api/upload", { method: "POST", body: data });
-    
-    // قراءة الرد كنص أولاً لتجنب انهيار JSON.parse إذا أرجع السيرفر صفحة خطأ HTML
-    const textResult = await response.text();
-    let resData: any = {};
-    
-    try {
-      resData = JSON.parse(textResult);
-    } catch (e) {
-      if (response.status === 413) {
-        throw new Error("حجم الملف كبير جداً بالنسبة لسيرفر Vercel (Content Too Large). يرجى رفع فيديو أقل من 4.5MB.");
+    data.append("upload_preset", uploadPreset);
+    data.append("folder", "cyber-portfolio");
+
+    const response = await fetch(
+      `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`,
+      {
+        method: "POST",
+        body: data,
       }
-      throw new Error("حدث خطأ غير متوقع في السيرفر أثناء رفع الملف.");
-    }
+    );
+
+    const resData = await response.json();
 
     if (!response.ok) {
-      throw new Error(resData.error || "فشلت عملية الرفع إلى السحابة.");
+      throw new Error(resData.error?.message || "فشلت عملية الرفع المباشر إلى السحابة.");
     }
-    
-    return resData.url; 
+
+    return resData.secure_url; 
   };
 
   const handleSubmitProject = async (e: React.FormEvent) => {
@@ -758,7 +747,8 @@ const handleRotatingWordChange = (id: number, value: string) => {
                       ))}
                     </div>
                   </div>
-{/* DYNAMIC & OPTIONAL IMAGES INPUT BLOCK */}
+
+                  {/* DYNAMIC & OPTIONAL IMAGES INPUT BLOCK */}
                   <div className="space-y-4 border border-dashed border-neutral-900 p-4 rounded-xl">
                     <div className="flex items-center justify-between">
                       <span className="text-[9px] font-mono text-neutral-400 uppercase tracking-widest">// Optional Image Nodes</span>
@@ -994,7 +984,6 @@ const handleRotatingWordChange = (id: number, value: string) => {
                   {bookings.map((booking) => {
                     const isCall = booking.type === "CALL_RESERVATION";
                     
-                    // Pre-compiled quick messages
                     const emailSubject = encodeURIComponent("Matrix Connection: Transmission Response");
                     const emailBody = encodeURIComponent(`Hello Operator,\nWe processed your packet transmission context from database logs.\n\nBest regards,\nAdmin Terminal`);
                     const whatsappMsg = encodeURIComponent("Greetings, we traced your connection packet from our matrix dashboard. Let's arrange a secure link sync.");
