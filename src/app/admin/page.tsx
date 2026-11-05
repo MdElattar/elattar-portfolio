@@ -34,6 +34,7 @@ interface Project {
   liveClicks?: number;
   codeClicks?: number;
   reviews: Review[];
+  rotatingWords?: string[];
 }
 
 interface Booking {
@@ -98,6 +99,9 @@ export default function AdminPage() {
   const [logs, setLogs] = useState<SystemLog[]>([
     { id: "init", time: new Date().toLocaleTimeString(), msg: "CORE_MATRIX: System initialization sequence established.", type: "info" }
   ]);
+
+  // --- Edit Project State ---
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
 
   // --- Dynamic Media Form States (Optional & Multiple) ---
   const [imageFields, setImageFields] = useState<MediaField[]>([]);
@@ -211,6 +215,54 @@ export default function AdminPage() {
     ));
   };
 
+  // --- EDIT PROJECT HANDLERS ---
+  const handleStartEditProject = (project: Project) => {
+    setEditingProjectId(project.id);
+    setFormData({
+      title: project.title || "",
+      desc: project.desc || "",
+      tech: project.tech || "",
+      liveLink: project.liveLink || "",
+      githubLink: project.githubLink || "",
+    });
+    
+    if (project.rotatingWords && project.rotatingWords.length > 0) {
+      setRotatingWords(project.rotatingWords.map((w, idx) => ({ id: Date.now() + idx, text: w })));
+    } else {
+      setRotatingWords([{ id: Date.now(), text: "" }]);
+    }
+
+    const imgs = (project.images && project.images.length > 0) ? project.images : (project.image ? [project.image] : []);
+    setImageFields(imgs.map((url, idx) => ({
+      id: `img-edit-${Date.now()}-${idx}`,
+      type: "url",
+      url: url,
+      file: null,
+      preview: url
+    })));
+
+    const vids = (project.videos && project.videos.length > 0) ? project.videos : (project.videoUrl ? [project.videoUrl] : []);
+    setVideoFields(vids.map((url, idx) => ({
+      id: `vid-edit-${Date.now()}-${idx}`,
+      type: "url",
+      url: url,
+      file: null,
+      preview: url
+    })));
+
+    setActiveTab("deploy");
+    pushLog(`MATRIX_EDIT: Loaded node [${project.title}] into modification matrix.`, "info");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingProjectId(null);
+    setFormData(initialFormState);
+    setImageFields([]);
+    setVideoFields([]);
+    setRotatingWords([{ id: Date.now(), text: "" }]);
+    pushLog("MATRIX_EDIT: Canceled node modification sequence.", "warn");
+  };
+
   // Idle Timer Security Lock Mechanism
   useEffect(() => {
     if (!user) return;
@@ -255,6 +307,7 @@ export default function AdminPage() {
           views: data.views || 0,
           liveClicks: data.liveClicks || 0,
           codeClicks: data.codeClicks || 0,
+          rotatingWords: data.rotatingWords || [],
           reviews: (data.reviews || []).map((r: any, idx: number) => ({
             id: r.id || `legacy_${idx}`,
             user: r.user || "Anonymous Operator",
@@ -351,10 +404,10 @@ export default function AdminPage() {
     }
   };
 
-  // --- UPDATED: Client-Side Direct Upload to Cloudinary (Bypasses Vercel 4.5MB Limit) ---
+  // --- UPDATED: Client-Side Direct Upload to Cloudinary ---
   const uploadToCloudinary = async (file: File) => {
-    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dutmcc0rf6";
-    const uploadPreset = "cyber_portfolio_preset"; // Preset created in Cloudinary
+    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dutmc0rf6";
+    const uploadPreset = "cyber_portfolio_preset";
 
     const data = new FormData();
     data.append("file", file);
@@ -385,7 +438,6 @@ export default function AdminPage() {
     pushLog("INJECTION: Preparing multiple-media asset cluster pipeline deployment...", "info");
 
     try {
-      // 1. معالجة الصور الديناميكية
       const resolvedImages: string[] = [];
       for (const f of imageFields) {
         if (f.type === "file" && f.file) {
@@ -396,7 +448,6 @@ export default function AdminPage() {
         }
       }
 
-      // 2. معالجة الفيديوهات الديناميكية
       const resolvedVideos: string[] = [];
       for (const f of videoFields) {
         if (f.type === "file" && f.file) {
@@ -427,24 +478,43 @@ export default function AdminPage() {
         rotatingWords: rotatingWords.map(w => w.text).filter(t => t.trim() !== "")
       };
 
-      // تطهير الكائن تماماً لضمان عدم وجود أي undefined
       const newProject = JSON.parse(
         JSON.stringify(rawProject, (key, value) => (value === undefined ? "" : value))
       );
 
-      await addDoc(collection(db, "projects"), newProject);
-      setIsSuccess(true);
-      pushLog(`DEPLOY_SUCCESS: Injected system node cluster [${formData.title}]`, "success");
-      fetchAdminData();
-      
-      setTimeout(() => {
-        setIsSuccess(false);
-        setFormData(initialFormState);
-        setImageFields([]);
-        setVideoFields([]);
-        setRotatingWords([{ id: Date.now(), text: "" }]);
-        setActiveTab("manage"); 
-      }, 2000);
+      if (editingProjectId) {
+        // --- UPDATE EXISTING PROJECT ---
+        const projectRef = doc(db, "projects", editingProjectId);
+        await updateDoc(projectRef, newProject);
+        setIsSuccess(true);
+        pushLog(`UPDATE_SUCCESS: Modified system node cluster [${formData.title}]`, "success");
+        fetchAdminData();
+        
+        setTimeout(() => {
+          setIsSuccess(false);
+          setEditingProjectId(null);
+          setFormData(initialFormState);
+          setImageFields([]);
+          setVideoFields([]);
+          setRotatingWords([{ id: Date.now(), text: "" }]);
+          setActiveTab("manage"); 
+        }, 2000);
+      } else {
+        // --- ADD NEW PROJECT ---
+        await addDoc(collection(db, "projects"), newProject);
+        setIsSuccess(true);
+        pushLog(`DEPLOY_SUCCESS: Injected system node cluster [${formData.title}]`, "success");
+        fetchAdminData();
+        
+        setTimeout(() => {
+          setIsSuccess(false);
+          setFormData(initialFormState);
+          setImageFields([]);
+          setVideoFields([]);
+          setRotatingWords([{ id: Date.now(), text: "" }]);
+          setActiveTab("manage"); 
+        }, 2000);
+      }
       
     } catch (error: any) {
       console.error("Matrix deployment failed:", error);
@@ -521,7 +591,6 @@ export default function AdminPage() {
     });
   };
 
-  // Export Analytics Dataset Routine
   const handleExportRegistry = () => {
     try {
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ projects, bookings, exportedAt: new Date().toISOString() }, null, 2));
@@ -538,7 +607,6 @@ export default function AdminPage() {
     }
   };
 
-  // --- Memoized Derived Data ---
   const stats = useMemo(() => {
     return projects.reduce((acc, p) => ({
       views: acc.views + (p.views || 0),
@@ -551,7 +619,6 @@ export default function AdminPage() {
     return projects.flatMap(p => p.reviews.map(r => ({ ...r, projectId: p.id, projectTitle: p.title })));
   }, [projects]);
 
-  // --- Render Helpers ---
   const TabBtn = ({ id, label }: { id: typeof activeTab, label: string }) => (
     <button 
       onClick={() => { setActiveTab(id); pushLog(`VIEW_BRIDGE: Shifted operation context view to [${id.toUpperCase()}]`); }} 
@@ -629,7 +696,9 @@ export default function AdminPage() {
         {isSuccess && (
           <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-md">
             <motion.div animate={{ rotateY: 360 }} transition={{ repeat: Infinity, duration: 2, ease: "linear" }} className={`w-16 h-16 mb-6 border-4 border-t-transparent border-r-transparent border-b-neutral-800 rounded-full ${accent.borderFull}`} />
-            <h2 className="text-2xl font-black tracking-[0.2em] uppercase text-white mb-2">MATRIX INJECTED</h2>
+            <h2 className="text-2xl font-black tracking-[0.2em] uppercase text-white mb-2">
+              {editingProjectId ? "MATRIX NODE UPDATED" : "MATRIX INJECTED"}
+            </h2>
             <p className={`font-mono text-[10px] tracking-widest ${accent.text}`}>DATABASE SYNCHRONIZED SUCCESSFULLY</p>
           </div>
         )}
@@ -640,7 +709,6 @@ export default function AdminPage() {
         <div>
           <div className="flex items-center gap-3 mb-1">
             <p className={`font-mono text-[9px] tracking-[0.3em] uppercase font-bold ${accent.text}`}>// Core Admin Analytics Matrix</p>
-            {/* Neon Accent Switcher */}
             <div className="flex bg-neutral-950 border border-neutral-900 rounded p-0.5 text-[8px] font-mono gap-1">
               <button onClick={() => { setAccentColor("blue"); pushLog("THEME: Accent color shifted to Cyber Blue."); }} className={`px-1.5 py-0.5 rounded cursor-pointer ${accentColor === "blue" ? "bg-blue-600 text-white" : "text-neutral-600"}`}>BLUE</button>
               <button onClick={() => { setAccentColor("green"); pushLog("THEME: Accent color shifted to Matrix Green."); }} className={`px-1.5 py-0.5 rounded cursor-pointer ${accentColor === "green" ? "bg-emerald-600 text-white" : "text-neutral-600"}`}>GREEN</button>
@@ -651,7 +719,7 @@ export default function AdminPage() {
           <p className="text-neutral-500 font-mono text-[11px] mt-1">Operator: <span className="text-neutral-300">{user?.email}</span></p>
         </div>
         <div className="flex flex-wrap gap-2 lg:gap-3 w-full xl:w-auto">
-          <TabBtn id="deploy" label="[01] DEPLOY" />
+          <TabBtn id="deploy" label={editingProjectId ? "[01] EDITING NODE" : "[01] DEPLOY"} />
           <TabBtn id="manage" label="[02] PROJECTS" />
           <TabBtn id="analytics" label="[03] METRICS" />
           <TabBtn id="reviews" label="[04] REVIEWS" />
@@ -685,10 +753,20 @@ export default function AdminPage() {
       <main className="max-w-7xl mx-auto pb-24">
         <AnimatePresence mode="wait">
           
-          {/* TAB 1: DEPLOY */}
+          {/* TAB 1: DEPLOY / EDIT */}
           {activeTab === "deploy" && (
             <motion.div key="deploy" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
               <div className="lg:col-span-7 bg-[#090909] border border-neutral-900 rounded-2xl p-8 shadow-2xl">
+                
+                {editingProjectId && (
+                  <div className="mb-6 p-4 bg-amber-950/20 border border-amber-900/50 rounded-xl flex items-center justify-between font-mono text-xs">
+                    <span className="text-amber-400">// EDIT_MODE_ACTIVE: Modifying Existing Node</span>
+                    <button onClick={handleCancelEdit} className="text-neutral-400 hover:text-white underline cursor-pointer text-[10px]">
+                      [ CANCEL EDIT ]
+                    </button>
+                  </div>
+                )}
+
                 <form onSubmit={handleSubmitProject} className="space-y-6">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
@@ -815,9 +893,16 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  <button type="submit" disabled={uploading} className="w-full font-mono text-xs font-bold tracking-widest py-4 rounded-xl bg-white text-black hover:bg-neutral-200 transition-all mt-4 cursor-pointer uppercase disabled:opacity-50">
-                    {uploading ? "SYNCING WITH CLOUD..." : "// INJECT NODE TO SYSTEM"}
-                  </button>
+                  <div className="flex gap-3 mt-4">
+                    {editingProjectId && (
+                      <button type="button" onClick={handleCancelEdit} className="w-1/3 font-mono text-xs font-bold tracking-widest py-4 rounded-xl bg-neutral-900 border border-neutral-700 text-neutral-300 hover:text-white transition-all cursor-pointer uppercase">
+                        CANCEL
+                      </button>
+                    )}
+                    <button type="submit" disabled={uploading} className={`${editingProjectId ? "w-2/3" : "w-full"} font-mono text-xs font-bold tracking-widest py-4 rounded-xl bg-white text-black hover:bg-neutral-200 transition-all cursor-pointer uppercase disabled:opacity-50`}>
+                      {uploading ? "SYNCING WITH CLOUD..." : editingProjectId ? "// UPDATE SYSTEM NODE" : "// INJECT NODE TO SYSTEM"}
+                    </button>
+                  </div>
                 </form>
               </div>
 
@@ -876,9 +961,15 @@ export default function AdminPage() {
                         <span className="text-[10px] font-mono text-blue-500 tracking-widest block mb-1">{project.tech}</span>
                         <h3 className="text-lg font-bold text-white mb-2">{project.title}</h3>
                         <p className="text-xs text-neutral-500 font-sans line-clamp-3 mb-5 flex-grow leading-relaxed">{project.desc}</p>
-                        <button onClick={() => handleDeleteProject(project.id)} className="w-full bg-red-950/20 hover:bg-red-900 border border-red-900/40 hover:text-white text-red-400 font-mono text-[10px] py-2.5 rounded-lg transition-all cursor-pointer">
-                          DELETE NODE
-                        </button>
+                        
+                        <div className="flex items-center gap-2 mt-auto">
+                          <button onClick={() => handleStartEditProject(project)} className="flex-1 bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-white font-mono text-[10px] py-2.5 rounded-lg transition-all cursor-pointer">
+                            EDIT NODE ✏️
+                          </button>
+                          <button onClick={() => handleDeleteProject(project.id)} className="bg-red-950/20 hover:bg-red-900 border border-red-900/40 hover:text-white text-red-400 font-mono text-[10px] py-2.5 px-4 rounded-lg transition-all cursor-pointer">
+                            DELETE
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -970,7 +1061,7 @@ export default function AdminPage() {
             </motion.div>
           )}
 
-          {/* TAB 5: RESERVATIONS & QUICK RESPONSE BRIDGE */}
+          {/* TAB 5: RESERVATIONS */}
           {activeTab === "reservations" && (
             <motion.div key="reservations" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
               <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest block px-1">// LIVE_RESERVATIONS_DATA_STREAM</span>
@@ -983,14 +1074,12 @@ export default function AdminPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {bookings.map((booking) => {
                     const isCall = booking.type === "CALL_RESERVATION";
-                    
                     const emailSubject = encodeURIComponent("Matrix Connection: Transmission Response");
                     const emailBody = encodeURIComponent(`Hello Operator,\nWe processed your packet transmission context from database logs.\n\nBest regards,\nAdmin Terminal`);
                     const whatsappMsg = encodeURIComponent("Greetings, we traced your connection packet from our matrix dashboard. Let's arrange a secure link sync.");
 
                     return (
                       <div key={booking.id} className={`bg-[#090909] border ${isCall ? "border-emerald-950/60" : "border-blue-950/60"} p-5 rounded-xl flex flex-col justify-between gap-4 shadow-xl relative overflow-hidden`}>
-                        
                         <div className="space-y-3">
                           <div className="flex items-center justify-between">
                             <span className={`font-mono text-[9px] font-bold px-2 py-0.5 rounded border ${isCall ? "bg-emerald-950/40 text-emerald-400 border-emerald-900/50" : "bg-blue-950/40 text-blue-400 border-blue-900/50"}`}>
@@ -1026,7 +1115,6 @@ export default function AdminPage() {
                           )}
                         </div>
 
-                        {/* Quick Response Action Bridge */}
                         <div className="pt-2 border-t border-neutral-900 flex items-center justify-between gap-2 flex-wrap">
                           <div className="flex gap-2 font-mono text-[8px]">
                             <a 
@@ -1056,7 +1144,6 @@ export default function AdminPage() {
                             DESTRUCT PACKET
                           </button>
                         </div>
-
                       </div>
                     );
                   })}
