@@ -12,6 +12,11 @@
 
 # testing
 /coverage
+/playwright-report
+/test-results
+
+# local Firebase Admin service account (never commit)
+service-account.json
 
 # next.js
 /.next/
