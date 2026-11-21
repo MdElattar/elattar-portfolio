@@ -500,7 +500,7 @@ export default function ProjectsSection({ initialProjects = [] }: { initialProje
                 <div className="relative w-full h-[40vh] sm:h-[55vh] md:h-[65vh] overflow-hidden mb-8 rounded-2xl bg-[#030303] border border-neutral-900/60 shadow-[0_0_50px_rgba(0,0,0,0.9)]">
                   <div className="absolute inset-0 w-full h-full z-10">
                     {projectMedia[mediaIndex]?.type === "image" ? (
-                      <Image src={projectMedia[mediaIndex].url} alt="Project Screen Matrix" fill priority className="object-cover transition-all duration-500" />
+                      <Image src={projectMedia[mediaIndex].url} alt="Project Screen Matrix" fill priority sizes="(max-width: 768px) 100vw, 66vw" className="object-cover transition-all duration-500" />
                     ) : (
                       <video src={projectMedia[mediaIndex]?.url} controls autoPlay loop muted playsInline className="w-full h-full object-cover" />
                     )}
@@ -697,7 +697,7 @@ const ProjectCard = memo(function ProjectCard({ project, onOpen }: { project: Pr
                    className="absolute top-2 left-2 bg-black/80 backdrop-blur-md p-1.5 rounded-full border border-neutral-800 shadow-2xl"
                  >
                     <div className="w-7 h-7 rounded-full overflow-hidden border border-neutral-600 relative">
-                       <Image src={myAvatarUrl} alt="Author" fill className="object-cover" />
+                       <Image src={myAvatarUrl} alt="Author" fill sizes="56px" className="object-cover" />
                     </div>
                  </motion.div>
               ) : (
