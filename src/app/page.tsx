@@ -11,7 +11,7 @@ import MatrixRain from "../app/components/MatrixRain"; // Matrix Background Modu
 
 // Reliable relative path to avoid Firebase module resolution errors
 import { auth, googleProvider } from "./lib/firebase"; 
-import { signInWithPopup, signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithPopup, signInWithEmailAndPassword, signOut } from "firebase/auth";
 
 export default function Home() {
   const [activeSection, setActiveSection] = useState(0);
@@ -28,6 +28,18 @@ export default function Home() {
   const router = useRouter();
   const sections = ["home", "skills", "projects"];
 
+  const createAdminSession = async () => {
+    const idToken = await auth?.currentUser?.getIdToken(true);
+    if (!idToken) throw new Error("Missing Firebase ID token");
+
+    const response = await fetch("/api/auth/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken }),
+    });
+    if (!response.ok) throw new Error("Admin session rejected");
+  };
+
   // --- Authentication Functions ---
   const handleGoogleLogin = async () => {
     try {
@@ -35,8 +47,10 @@ export default function Home() {
       setAuthError("");
       if (!auth) throw new Error("Firebase Auth not initialized");
       await signInWithPopup(auth , googleProvider);
+      await createAdminSession();
       router.push("/admin"); 
     } catch (err: any) {
+      if (auth) await signOut(auth).catch(() => {});
       setAuthError("Google Login Failed. Try again.");
     } finally {
       setIsLoading(false);
@@ -50,8 +64,10 @@ export default function Home() {
       setAuthError("");
       if (!auth) throw new Error("Firebase Auth not initialized");
       await signInWithEmailAndPassword(auth, email, password);
+      await createAdminSession();
       router.push("/admin"); 
     } catch (err: any) {
+      if (auth) await signOut(auth).catch(() => {});
       setAuthError("Invalid Admin Email or Password.");
     } finally {
       setIsLoading(false);

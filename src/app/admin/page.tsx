@@ -397,6 +397,7 @@ export default function AdminPage() {
     if (!auth) return;
     try {
       pushLog("AUTH_GATEWAY: Terminating master cryptographic token.", "warn");
+      await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
       await signOut(auth);
       router.push("/");
     } catch (error) {
