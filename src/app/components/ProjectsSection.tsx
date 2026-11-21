@@ -123,7 +123,7 @@ export default function ProjectsSection() {
       return;
     }
     if (tab === activeTab) return;
-    setSlideDirection(tab === "developer" ? "right" : "left");
+    setSlideDirection("left");
     setActiveTab(tab);
     
     if (sectionRef.current) {

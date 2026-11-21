@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
-import { arrayRemove, FieldValue } from "firebase-admin/firestore";
+import { FieldValue } from "firebase-admin/firestore";
 import { z } from "zod";
 import { adminDb } from "../../../lib/firebase-admin";
 import { getClientIp } from "../../../lib/client-ip";
@@ -55,7 +55,7 @@ export async function DELETE(request: Request) {
     const target = reviews.find((review) => review.id === parsed.data.reviewId);
     if (!target) return NextResponse.json({ ok: false }, { status: 404 });
 
-    await ref.update({ reviews: arrayRemove(target) });
+    await ref.update({ reviews: FieldValue.arrayRemove(target) });
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Review delete failed:", error);
