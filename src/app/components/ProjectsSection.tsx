@@ -1,11 +1,11 @@
 "use client";
 
 import { motion, AnimatePresence, useInView, useMotionValue, useTransform, useSpring } from "framer-motion";
-import { useRef, useState, useEffect, memo } from "react";
+import { useRef, useState, useEffect, memo, useDeferredValue, useMemo } from "react";
 import Image from "next/image";
 import SpaceBackground from "./SpaceBackground"; 
 import { db } from "../lib/firebase"; 
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, limit, query } from "firebase/firestore";
 
 // --- Interfaces & Types ---
 interface Review {
@@ -19,7 +19,7 @@ interface Review {
   createdAt: string;
 }
 
-interface Project {
+export interface Project {
   id: string;
   title: string;
   desc: string;
@@ -69,9 +69,9 @@ function trackProjectEvent(projectId: string, type: TrackType) {
   }).catch((error) => console.error("Track request failed:", error));
 }
 
-export default function ProjectsSection() {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loadingProjects, setLoadingProjects] = useState(true);
+export default function ProjectsSection({ initialProjects = [] }: { initialProjects?: Project[] }) {
+  const [projects, setProjects] = useState<Project[]>(initialProjects);
+  const [loadingProjects, setLoadingProjects] = useState(initialProjects.length === 0);
   
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]); 
@@ -150,9 +150,14 @@ export default function ProjectsSection() {
     const savedReviews = JSON.parse(localStorage.getItem("my_matrix_reviews") || "[]");
     setMyCreatedReviewIds(savedReviews);
 
+    if (initialProjects.length > 0) {
+      setLoadingProjects(false);
+      return;
+    }
+
     const fetchProjects = async () => {
       try {
-        const querySnapshot = await getDocs(collection(db, "projects"));
+        const querySnapshot = await getDocs(query(collection(db, "projects"), limit(50)));
         const fetchedProjects: Project[] = [];
         querySnapshot.forEach((doc) => {
           const data = doc.data();
@@ -163,7 +168,10 @@ export default function ProjectsSection() {
             techList: data.techList || [], 
             liveClicks: data.liveClicks || 0,
             codeClicks: data.codeClicks || 0,
-            reviews: data.reviews || [],
+            reviews: (data.reviews || []).map((review: any) => ({
+              ...review,
+              createdAt: typeof review.createdAt === "string" ? review.createdAt : "",
+            })),
           } as Project);
         });
         setProjects(fetchedProjects);
@@ -171,7 +179,7 @@ export default function ProjectsSection() {
       finally { setLoadingProjects(false); }
     };
     fetchProjects();
-  }, []);
+  }, [initialProjects]);
 
   useEffect(() => {
     if (activeTab === "developer") {
@@ -299,12 +307,13 @@ export default function ProjectsSection() {
     }
   };
 
-  const filteredProjects = projects.filter(project => {
-    const matchesSearch = project.title?.toLowerCase().includes(searchQuery.toLowerCase()) || project.tech?.toLowerCase().includes(searchQuery.toLowerCase());
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const filteredProjects = useMemo(() => projects.filter(project => {
+    const matchesSearch = project.title?.toLowerCase().includes(deferredSearchQuery.toLowerCase()) || project.tech?.toLowerCase().includes(deferredSearchQuery.toLowerCase());
     const projectTechs = (project.techList?.join(" ") || project.tech || "").toLowerCase();
     const matchesFilters = selectedFilters.length === 0 || selectedFilters.every(filter => projectTechs.includes(filter.toLowerCase()));
     return matchesSearch && matchesFilters;
-  });
+  }), [projects, deferredSearchQuery, selectedFilters]);
 
   return (
     <section 

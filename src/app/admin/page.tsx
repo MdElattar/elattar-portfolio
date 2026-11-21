@@ -448,6 +448,12 @@ export default function AdminPage() {
     }
   };
 
+  const revalidateProjects = () => {
+    void fetch("/api/revalidate", { method: "POST" }).catch((error) =>
+      console.error("Revalidation failed:", error),
+    );
+  };
+
   const handleUnlock = async () => {
     try {
       if (!auth?.currentUser) throw new Error("No authenticated operator");
@@ -561,6 +567,7 @@ export default function AdminPage() {
         // --- UPDATE EXISTING PROJECT ---
         const projectRef = doc(db, "projects", editingProjectId);
         await updateDoc(projectRef, newProject);
+        revalidateProjects();
         setEditingProjectId(null);
         setSaveStatusMessage("MATRIX NODE UPDATED");
         setIsSuccess(true);
@@ -579,6 +586,7 @@ export default function AdminPage() {
       } else {
         // --- ADD NEW PROJECT ---
         await addDoc(collection(db, "projects"), newProject);
+        revalidateProjects();
         setSaveStatusMessage("MATRIX INJECTED");
         setIsSuccess(true);
         pushLog(`DEPLOY_SUCCESS: Injected system node cluster [${formData.title}]`, "success");
@@ -616,6 +624,7 @@ export default function AdminPage() {
           const targetReview = storedReviews.find(r => r.id === reviewToRemove.id) || reviewToRemove;
 
           await updateDoc(projectRef, { reviews: arrayRemove(targetReview) });
+          revalidateProjects();
 
           setProjects(prev => 
             prev.map(p => p.id === projectId
@@ -642,6 +651,7 @@ export default function AdminPage() {
       onConfirm: async () => {
         try {
           await deleteDoc(doc(db, "projects", projectId));
+          revalidateProjects();
           setProjects(prev => prev.filter(p => p.id !== projectId));
           showToast("NODE_DELETED_SUCCESSFULLY", "success");
           pushLog(`DESTRUCT: Terminated node registration block for [${target?.title || projectId}]`, "warn");
