@@ -25,6 +25,15 @@ function adminApp(): App {
   return initializeApp({ credential: applicationDefault(), projectId }, ADMIN_APP_NAME);
 }
 
+export function hasAdminCredentials(): boolean {
+  const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
+  const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
+  return Boolean(
+    (projectId && clientEmail && privateKey) || process.env.GOOGLE_APPLICATION_CREDENTIALS,
+  );
+}
+
 export function adminAuth(): Auth {
   return getAuth(adminApp());
 }

@@ -1,9 +1,10 @@
 import { unstable_cache } from "next/cache";
-import { adminDb } from "../lib/firebase-admin";
+import { adminDb, hasAdminCredentials } from "../lib/firebase-admin";
 import HomeClient from "./HomeClient";
 
 const getProjects = unstable_cache(
   async () => {
+    if (!hasAdminCredentials()) return [];
     try {
       const snapshot = await adminDb().collection("projects").get();
       return snapshot.docs.map((doc) => {

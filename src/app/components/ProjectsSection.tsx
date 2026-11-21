@@ -500,7 +500,7 @@ export default function ProjectsSection({ initialProjects = [] }: { initialProje
                 <div className="relative w-full h-[40vh] sm:h-[55vh] md:h-[65vh] overflow-hidden mb-8 rounded-2xl bg-[#030303] border border-neutral-900/60 shadow-[0_0_50px_rgba(0,0,0,0.9)]">
                   <div className="absolute inset-0 w-full h-full z-10">
                     {projectMedia[mediaIndex]?.type === "image" ? (
-                      <Image src={projectMedia[mediaIndex].url} alt="Project Screen Matrix" fill priority className="object-cover transition-all duration-500" unoptimized />
+                      <Image src={projectMedia[mediaIndex].url} alt="Project Screen Matrix" fill priority className="object-cover transition-all duration-500" />
                     ) : (
                       <video src={projectMedia[mediaIndex]?.url} controls autoPlay loop muted playsInline className="w-full h-full object-cover" />
                     )}
@@ -541,7 +541,7 @@ export default function ProjectsSection({ initialProjects = [] }: { initialProje
                      <div className="bg-[#050505]/80 backdrop-blur-md border border-neutral-900 p-6 rounded-2xl flex flex-col gap-5 justify-center h-full">
                         <div className="flex items-center gap-4 cursor-default">
                           <div className="relative w-14 h-14 rounded-full overflow-hidden border border-neutral-800 bg-neutral-900 flex-shrink-0">
-                            <Image src="/MOHAMED-ELATTAR.PNG" alt="ELATTAR Profile" fill sizes="56px" className="object-cover" unoptimized />
+                            <Image src="/MOHAMED-ELATTAR.PNG" alt="ELATTAR Profile" fill sizes="56px" className="object-cover" />
                           </div>
                           <div className="flex flex-col">
                             <span className="text-[9px] font-mono text-blue-400 tracking-widest uppercase">CORE ARCHITECT</span>
@@ -681,7 +681,7 @@ const ProjectCard = memo(function ProjectCard({ project, onOpen }: { project: Pr
                transition={{ duration: 0.5 }}
                className="absolute inset-0"
              >
-               <Image src={currentImage} alt={project.title} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover transition-transform duration-700 grayscale-[0.3] group-hover:scale-[1.05] group-hover:grayscale-0" unoptimized />
+               <Image src={currentImage} alt={project.title} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover transition-transform duration-700 grayscale-[0.3] group-hover:scale-[1.05] group-hover:grayscale-0" />
              </motion.div>
           </AnimatePresence>
           
@@ -697,7 +697,7 @@ const ProjectCard = memo(function ProjectCard({ project, onOpen }: { project: Pr
                    className="absolute top-2 left-2 bg-black/80 backdrop-blur-md p-1.5 rounded-full border border-neutral-800 shadow-2xl"
                  >
                     <div className="w-7 h-7 rounded-full overflow-hidden border border-neutral-600 relative">
-                       <Image src={myAvatarUrl} alt="Author" fill className="object-cover" unoptimized />
+                       <Image src={myAvatarUrl} alt="Author" fill className="object-cover" />
                     </div>
                  </motion.div>
               ) : (
