@@ -1,11 +1,11 @@
 "use client";
 
 import { motion, AnimatePresence, useInView, useMotionValue, useTransform, useSpring } from "framer-motion";
-import { useRef, useState, useEffect, memo } from "react";
+import { useRef, useState, useEffect, memo, useDeferredValue, useMemo } from "react";
 import Image from "next/image";
 import SpaceBackground from "./SpaceBackground"; 
 import { db } from "../lib/firebase"; 
-import { collection, getDocs, doc, updateDoc, increment, arrayUnion, arrayRemove } from "firebase/firestore";
+import { collection, getDocs, limit, query } from "firebase/firestore";
 
 // --- Interfaces & Types ---
 interface Review {
@@ -19,7 +19,7 @@ interface Review {
   createdAt: string;
 }
 
-interface Project {
+export interface Project {
   id: string;
   title: string;
   desc: string;
@@ -53,9 +53,25 @@ interface Repo {
 
 const springConfig = { damping: 20, stiffness: 150, mass: 0.5 };
 
-export default function ProjectsSection() {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loadingProjects, setLoadingProjects] = useState(true);
+type TrackType = "views" | "liveClicks" | "codeClicks";
+
+function trackProjectEvent(projectId: string, type: TrackType) {
+  if (type === "views" && typeof window !== "undefined") {
+    const key = `viewed:${projectId}`;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, "1");
+  }
+  void fetch("/api/track", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ projectId, type }),
+    keepalive: true,
+  }).catch((error) => console.error("Track request failed:", error));
+}
+
+export default function ProjectsSection({ initialProjects = [] }: { initialProjects?: Project[] }) {
+  const [projects, setProjects] = useState<Project[]>(initialProjects);
+  const [loadingProjects, setLoadingProjects] = useState(initialProjects.length === 0);
   
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]); 
@@ -107,7 +123,7 @@ export default function ProjectsSection() {
       return;
     }
     if (tab === activeTab) return;
-    setSlideDirection(tab === "developer" ? "right" : "left");
+    setSlideDirection("left");
     setActiveTab(tab);
     
     if (sectionRef.current) {
@@ -134,9 +150,14 @@ export default function ProjectsSection() {
     const savedReviews = JSON.parse(localStorage.getItem("my_matrix_reviews") || "[]");
     setMyCreatedReviewIds(savedReviews);
 
+    if (initialProjects.length > 0) {
+      setLoadingProjects(false);
+      return;
+    }
+
     const fetchProjects = async () => {
       try {
-        const querySnapshot = await getDocs(collection(db, "projects"));
+        const querySnapshot = await getDocs(query(collection(db, "projects"), limit(50)));
         const fetchedProjects: Project[] = [];
         querySnapshot.forEach((doc) => {
           const data = doc.data();
@@ -147,7 +168,10 @@ export default function ProjectsSection() {
             techList: data.techList || [], 
             liveClicks: data.liveClicks || 0,
             codeClicks: data.codeClicks || 0,
-            reviews: data.reviews || [],
+            reviews: (data.reviews || []).map((review: any) => ({
+              ...review,
+              createdAt: typeof review.createdAt === "string" ? review.createdAt : "",
+            })),
           } as Project);
         });
         setProjects(fetchedProjects);
@@ -155,65 +179,25 @@ export default function ProjectsSection() {
       finally { setLoadingProjects(false); }
     };
     fetchProjects();
-  }, []);
+  }, [initialProjects]);
 
   useEffect(() => {
     if (activeTab === "developer") {
-      const token = process.env.NEXT_PUBLIC_GITHUB_TOKEN;
-      const headers = token ? { Authorization: `token ${token}` } : {};
-
-      fetch("https://api.github.com/users/MdElattar", { headers })
+      fetch("/api/github")
         .then(res => {
-           if (!res.ok) throw new Error("GitHub API Error");
-           return res.json();
+          if (!res.ok) throw new Error("GitHub API Error");
+          return res.json();
         })
         .then(data => {
-          if(data.public_repos !== undefined) {
-            setGithubStats(prev => ({ ...prev, repos: data.public_repos, followers: data.followers || 0 }));
-          }
-        }).catch(e => console.error(e));
-
-      fetch("https://api.github.com/users/MdElattar/repos?per_page=100", { headers })
-        .then(res => {
-           if (!res.ok) throw new Error("GitHub API Error");
-           return res.json();
-        })
-        .then(data => {
-          if (Array.isArray(data)) {
-            const stars = data.reduce((acc: number, repo: Repo) => acc + repo.stargazers_count, 0);
-            const forks = data.reduce((acc: number, repo: Repo) => acc + repo.forks_count, 0);
-            setGithubStats(prev => ({ ...prev, stars, forks }));
-            
-            const sorted = [...data].sort((a: any, b: any) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-            setGithubRepos(sorted.slice(0, 2));
-          }
-        }).catch(e => console.error(e));
-
-      fetch("https://api.github.com/users/MdElattar/events/public?per_page=100", { headers })
-        .then(res => {
-           if (!res.ok) throw new Error("GitHub API Error");
-           return res.json();
-        })
-        .then(data => {
-          if (Array.isArray(data)) {
-            const dates = [...new Set(data.map((event: any) => new Date(event.created_at).toDateString()))];
-            let streak = 0;
-            let d = new Date();
-            if (dates.includes(d.toDateString())) streak++;
-            d.setDate(d.getDate() - 1);
-            while(dates.includes(d.toDateString())) {
-              streak++;
-              d.setDate(d.getDate() - 1);
-            }
-            setDynamicStreak(streak);
-
-            const yearMap: Record<number, number> = {};
-            data.forEach((ev: any) => {
-                const year = new Date(ev.created_at).getFullYear();
-                yearMap[year] = (yearMap[year] || 0) + 1;
-            });
-            setCommitsMap(yearMap);
-          }
+          setGithubStats({
+            repos: data.stats?.repos || 0,
+            followers: data.stats?.followers || 0,
+            stars: data.stats?.stars || 0,
+            forks: data.stats?.forks || 0,
+          });
+          setGithubRepos(Array.isArray(data.featured) ? data.featured : []);
+          setDynamicStreak(data.streak || 0);
+          setCommitsMap(data.commitsByYear || {});
         }).catch(e => console.error(e));
     }
   }, [activeTab]);
@@ -239,25 +223,25 @@ export default function ProjectsSection() {
     setMediaIndex(0);
     setProjects(prev => prev.map(p => p.id === project.id ? { ...p, views: (p.views || 0) + 1 } : p));
     setSelectedProject({ ...project, views: (project.views || 0) + 1 });
-    try { await updateDoc(doc(db, "projects", project.id), { views: increment(1) }); } catch (e) {}
+    trackProjectEvent(project.id, "views");
   };
 
   const logLiveClick = async (projectId: string) => {
     setProjects(prev => prev.map(p => p.id === projectId ? { ...p, liveClicks: (p.liveClicks || 0) + 1 } : p));
     if (selectedProject && selectedProject.id === projectId) setSelectedProject(prev => prev ? { ...prev, liveClicks: (prev.liveClicks || 0) + 1 } : null);
-    try { await updateDoc(doc(db, "projects", projectId), { liveClicks: increment(1) }); } catch (e) {}
+    trackProjectEvent(projectId, "liveClicks");
   };
 
   const logCodeClick = async (projectId: string) => {
     setProjects(prev => prev.map(p => p.id === projectId ? { ...p, codeClicks: (p.codeClicks || 0) + 1 } : p));
     if (selectedProject && selectedProject.id === projectId) setSelectedProject(prev => prev ? { ...prev, codeClicks: (prev.codeClicks || 0) + 1 } : null);
-    try { await updateDoc(doc(db, "projects", projectId), { codeClicks: increment(1) }); } catch (e) {}
+    trackProjectEvent(projectId, "codeClicks");
   };
 
   const handleAddReview = async (reviewData: Omit<Review, "id" | "createdAt">) => {
     if (!selectedProject) return;
-    const reviewId = "rev_" + Math.random().toString(36).substr(2, 9);
-    const finalReview: Review = { id: reviewId, ...reviewData, createdAt: new Date().toISOString() };
+    const tempId = `pending_${Math.random().toString(36).substr(2, 9)}`;
+    const finalReview: Review = { id: tempId, ...reviewData, createdAt: new Date().toISOString() };
     
     setProjects(prev => prev.map(p => {
       if (p.id === selectedProject.id) {
@@ -267,10 +251,32 @@ export default function ProjectsSection() {
       }
       return p;
     }));
-    const updatedMyIds = [...myCreatedReviewIds, reviewId];
+    const updatedMyIds = [...myCreatedReviewIds, tempId];
     setMyCreatedReviewIds(updatedMyIds);
     localStorage.setItem("my_matrix_reviews", JSON.stringify(updatedMyIds));
-    try { await updateDoc(doc(db, "projects", selectedProject.id), { reviews: arrayUnion(finalReview) }); } catch (error) {}
+
+    try {
+      const response = await fetch("/api/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: selectedProject.id, ...reviewData }),
+      });
+      if (!response.ok) throw new Error("Review rejected");
+      const { review } = (await response.json()) as { review: Review };
+
+      setProjects(prev => prev.map(p => p.id === selectedProject.id
+        ? { ...p, reviews: (p.reviews || []).map(r => r.id === tempId ? review : r) }
+        : p));
+      setSelectedProject(prev => prev && prev.id === selectedProject.id
+        ? { ...prev, reviews: (prev.reviews || []).map(r => r.id === tempId ? review : r) }
+        : prev);
+
+      const serverIds = updatedMyIds.map(id => id === tempId ? review.id : id);
+      setMyCreatedReviewIds(serverIds);
+      localStorage.setItem("my_matrix_reviews", JSON.stringify(serverIds));
+    } catch (error) {
+      console.error("Failed to save review:", error);
+    }
   };
 
   const handleDeleteReview = async (review: Review) => {
@@ -286,19 +292,28 @@ export default function ProjectsSection() {
       return p;
     }));
     try {
-      await updateDoc(doc(db, "projects", selectedProject.id), { reviews: arrayRemove(review) });
+      const response = await fetch("/api/review", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: selectedProject.id, reviewId: review.id }),
+      });
+      if (!response.ok) throw new Error("Review purge rejected");
+
       const updatedMyIds = myCreatedReviewIds.filter(id => id !== review.id);
       setMyCreatedReviewIds(updatedMyIds);
       localStorage.setItem("my_matrix_reviews", JSON.stringify(updatedMyIds));
-    } catch (error) {}
+    } catch (error) {
+      console.error("Failed to delete review:", error);
+    }
   };
 
-  const filteredProjects = projects.filter(project => {
-    const matchesSearch = project.title?.toLowerCase().includes(searchQuery.toLowerCase()) || project.tech?.toLowerCase().includes(searchQuery.toLowerCase());
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const filteredProjects = useMemo(() => projects.filter(project => {
+    const matchesSearch = project.title?.toLowerCase().includes(deferredSearchQuery.toLowerCase()) || project.tech?.toLowerCase().includes(deferredSearchQuery.toLowerCase());
     const projectTechs = (project.techList?.join(" ") || project.tech || "").toLowerCase();
     const matchesFilters = selectedFilters.length === 0 || selectedFilters.every(filter => projectTechs.includes(filter.toLowerCase()));
     return matchesSearch && matchesFilters;
-  });
+  }), [projects, deferredSearchQuery, selectedFilters]);
 
   return (
     <section 
@@ -485,7 +500,7 @@ export default function ProjectsSection() {
                 <div className="relative w-full h-[40vh] sm:h-[55vh] md:h-[65vh] overflow-hidden mb-8 rounded-2xl bg-[#030303] border border-neutral-900/60 shadow-[0_0_50px_rgba(0,0,0,0.9)]">
                   <div className="absolute inset-0 w-full h-full z-10">
                     {projectMedia[mediaIndex]?.type === "image" ? (
-                      <Image src={projectMedia[mediaIndex].url} alt="Project Screen Matrix" fill priority className="object-cover transition-all duration-500" unoptimized />
+                      <Image src={projectMedia[mediaIndex].url} alt="Project Screen Matrix" fill priority sizes="(max-width: 768px) 100vw, 66vw" className="object-cover transition-all duration-500" />
                     ) : (
                       <video src={projectMedia[mediaIndex]?.url} controls autoPlay loop muted playsInline className="w-full h-full object-cover" />
                     )}
@@ -526,7 +541,7 @@ export default function ProjectsSection() {
                      <div className="bg-[#050505]/80 backdrop-blur-md border border-neutral-900 p-6 rounded-2xl flex flex-col gap-5 justify-center h-full">
                         <div className="flex items-center gap-4 cursor-default">
                           <div className="relative w-14 h-14 rounded-full overflow-hidden border border-neutral-800 bg-neutral-900 flex-shrink-0">
-                            <Image src="/MOHAMED-ELATTAR.PNG" alt="ELATTAR Profile" fill sizes="56px" className="object-cover" unoptimized />
+                            <Image src="/MOHAMED-ELATTAR.PNG" alt="ELATTAR Profile" fill sizes="56px" className="object-cover" />
                           </div>
                           <div className="flex flex-col">
                             <span className="text-[9px] font-mono text-blue-400 tracking-widest uppercase">CORE ARCHITECT</span>
@@ -666,7 +681,7 @@ const ProjectCard = memo(function ProjectCard({ project, onOpen }: { project: Pr
                transition={{ duration: 0.5 }}
                className="absolute inset-0"
              >
-               <Image src={currentImage} alt={project.title} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover transition-transform duration-700 grayscale-[0.3] group-hover:scale-[1.05] group-hover:grayscale-0" unoptimized />
+               <Image src={currentImage} alt={project.title} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover transition-transform duration-700 grayscale-[0.3] group-hover:scale-[1.05] group-hover:grayscale-0" />
              </motion.div>
           </AnimatePresence>
           
@@ -682,7 +697,7 @@ const ProjectCard = memo(function ProjectCard({ project, onOpen }: { project: Pr
                    className="absolute top-2 left-2 bg-black/80 backdrop-blur-md p-1.5 rounded-full border border-neutral-800 shadow-2xl"
                  >
                     <div className="w-7 h-7 rounded-full overflow-hidden border border-neutral-600 relative">
-                       <Image src={myAvatarUrl} alt="Author" fill className="object-cover" unoptimized />
+                       <Image src={myAvatarUrl} alt="Author" fill sizes="56px" className="object-cover" />
                     </div>
                  </motion.div>
               ) : (

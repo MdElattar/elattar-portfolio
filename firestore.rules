@@ -1,0 +1,30 @@
+rules_version = '2';
+
+// Stage A: transitional rules. Keeps the current client behaviour working while
+// public writes are being moved to server-side API routes. Stage B is stored in
+// firestore.stage-b.rules and must only be deployed after /api/track and
+// /api/review are live and verified.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null && request.auth.token.admin == true;
+    }
+
+    match /projects/{projectId} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['views', 'liveClicks', 'codeClicks', 'reviews']);
+    }
+
+    match /bookings/{bookingId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

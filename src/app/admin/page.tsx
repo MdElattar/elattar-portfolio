@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { auth, db } from "../lib/firebase"; 
-import { onAuthStateChanged, signOut, User } from "firebase/auth";
-import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy } from "firebase/firestore";
+import { GoogleAuthProvider, onAuthStateChanged, reauthenticateWithPopup, signOut, User } from "firebase/auth";
+import { arrayRemove, collection, addDoc, getDocs, getDoc, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy } from "firebase/firestore";
 import { motion, AnimatePresence } from "framer-motion";
 
 // --- Interfaces ---
@@ -97,11 +97,13 @@ export default function AdminPage() {
   const [accentColor, setAccentColor] = useState<"blue" | "green" | "red">("blue");
   const [isLocked, setIsLocked] = useState(false);
   const [logs, setLogs] = useState<SystemLog[]>([
-    { id: "init", time: new Date().toLocaleTimeString(), msg: "CORE_MATRIX: System initialization sequence established.", type: "info" }
+    { id: "init", time: "--:--:--", msg: "CORE_MATRIX: System initialization sequence established.", type: "info" }
   ]);
+  const previewUrlsRef = useRef<Set<string>>(new Set());
 
   // --- Edit Project State ---
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [saveStatusMessage, setSaveStatusMessage] = useState("");
 
   // --- Dynamic Media Form States (Optional & Multiple) ---
   const [imageFields, setImageFields] = useState<MediaField[]>([]);
@@ -130,6 +132,23 @@ export default function AdminPage() {
     return classes[accentColor];
   }, [accentColor]);
 
+  const revokePreviewUrl = useCallback((url?: string) => {
+    if (url?.startsWith("blob:")) {
+      URL.revokeObjectURL(url);
+      previewUrlsRef.current.delete(url);
+    }
+  }, []);
+
+  const revokeAllPreviewUrls = useCallback(() => {
+    previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    previewUrlsRef.current.clear();
+  }, []);
+
+  useEffect(() => {
+    setLogs(prev => prev.map(log => log.id === "init" ? { ...log, time: new Date().toLocaleTimeString() } : log));
+    return () => revokeAllPreviewUrls();
+  }, [revokeAllPreviewUrls]);
+
   // --- Handlers ---
   const pushLog = (msg: string, type: SystemLog["type"] = "info") => {
     const newLog: SystemLog = {
@@ -138,7 +157,7 @@ export default function AdminPage() {
       msg,
       type
     };
-    setLogs(prev => [newLog, ...prev]);
+    setLogs(prev => [newLog, ...prev].slice(0, 200));
   };
 
   const showToast = (message: string, type: Toast["type"] = "success") => {
@@ -158,6 +177,8 @@ export default function AdminPage() {
   };
 
   const removeImageField = (id: string) => {
+    const target = imageFields.find(f => f.id === id);
+    if (target) revokePreviewUrl(target.preview);
     setImageFields(prev => prev.filter(f => f.id !== id));
     pushLog("FORM_MATRIX: Purged alternative image node channel.", "warn");
   };
@@ -168,6 +189,8 @@ export default function AdminPage() {
   };
 
   const removeVideoField = (id: string) => {
+    const target = videoFields.find(f => f.id === id);
+    if (target) revokePreviewUrl(target.preview);
     setVideoFields(prev => prev.filter(f => f.id !== id));
     pushLog("FORM_MATRIX: Purged alternative video node channel.", "warn");
   };
@@ -175,7 +198,11 @@ export default function AdminPage() {
   const handleDynamicFileChange = (e: React.ChangeEvent<HTMLInputElement>, id: string, mediaType: "image" | "video") => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const current = (mediaType === "image" ? imageFields : videoFields).find(f => f.id === id);
+    if (current) revokePreviewUrl(current.preview);
+
     const previewUrl = URL.createObjectURL(file);
+    previewUrlsRef.current.add(previewUrl);
 
     const updateBlock = (prev: MediaField[]) => prev.map(f => f.id === id ? { ...f, file, preview: previewUrl, url: "" } : f);
     if (mediaType === "image") setImageFields(updateBlock);
@@ -183,19 +210,25 @@ export default function AdminPage() {
   };
 
   const handleDynamicUrlChange = (value: string, id: string, mediaType: "image" | "video") => {
+    const current = (mediaType === "image" ? imageFields : videoFields).find(f => f.id === id);
+    if (current) revokePreviewUrl(current.preview);
+
     const updateBlock = (prev: MediaField[]) => prev.map(f => f.id === id ? { ...f, url: value, file: null, preview: "" } : f);
     if (mediaType === "image") setImageFields(updateBlock);
     else setVideoFields(updateBlock);
   };
 
   const handleDynamicTypeChange = (type: "url" | "file", id: string, mediaType: "image" | "video") => {
+    const current = (mediaType === "image" ? imageFields : videoFields).find(f => f.id === id);
+    if (current) revokePreviewUrl(current.preview);
+
     const updateBlock = (prev: MediaField[]) => prev.map(f => f.id === id ? { ...f, type, url: "", file: null, preview: "" } : f);
     if (mediaType === "image") setImageFields(updateBlock);
     else setVideoFields(updateBlock);
   };
 
   // State لإدارة الكلمات المتحركة
-  const [rotatingWords, setRotatingWords] = useState([{ id: Date.now(), text: "" }]);
+  const [rotatingWords, setRotatingWords] = useState([{ id: 1, text: "" }]);
 
   const addRotatingWord = () => {
     setRotatingWords([...rotatingWords, { id: Date.now(), text: "" }]);
@@ -217,6 +250,7 @@ export default function AdminPage() {
 
   // --- EDIT PROJECT HANDLERS ---
   const handleStartEditProject = (project: Project) => {
+    revokeAllPreviewUrls();
     setEditingProjectId(project.id);
     setFormData({
       title: project.title || "",
@@ -255,6 +289,7 @@ export default function AdminPage() {
   };
 
   const handleCancelEdit = () => {
+    revokeAllPreviewUrls();
     setEditingProjectId(null);
     setFormData(initialFormState);
     setImageFields([]);
@@ -334,8 +369,12 @@ export default function AdminPage() {
     if (!db || !user) return;
 
     if (typeof window !== "undefined" && "Notification" in window) {
-      if (Notification.permission !== "granted" && Notification.permission !== "denied") {
-        Notification.requestPermission();
+      try {
+        if (Notification.permission === "default") {
+          void Promise.resolve(Notification.requestPermission()).catch(() => {});
+        }
+      } catch {
+        // Some browsers expose Notification but throw on permission requests.
       }
     }
 
@@ -349,16 +388,20 @@ export default function AdminPage() {
         if (change.type === "added" && !isInitialLoad) {
           const newDoc = change.doc.data();
           pushLog(`INCOMING_STREAM: Packet transmission intercepted from [${newDoc.payload?.email || "UNKNOWN"}]`, "warn");
-          if (Notification.permission === "granted") {
-            const title = newDoc.type === "CALL_RESERVATION" ? "🚀 حجز مكالمة جديد!" : "🛰️ رسالة مباشرة جديدة!";
-            const body = newDoc.type === "CALL_RESERVATION" 
-              ? `العميل: ${newDoc.payload?.name} - الساعة: ${newDoc.payload?.time}`
-              : `من: ${newDoc.payload?.email}\nالمحتوى: ${newDoc.payload?.message}`;
-            
-            new Notification(title, {
-              body: body,
-              icon: "/favicon.ico",
-            });
+          try {
+            if ("Notification" in window && Notification.permission === "granted") {
+              const title = newDoc.type === "CALL_RESERVATION" ? "🚀 حجز مكالمة جديد!" : "🛰️ رسالة مباشرة جديدة!";
+              const body = newDoc.type === "CALL_RESERVATION" 
+                ? `العميل: ${newDoc.payload?.name} - الساعة: ${newDoc.payload?.time}`
+                : `من: ${newDoc.payload?.email}\nالمحتوى: ${newDoc.payload?.message}`;
+              
+              new Notification(title, {
+                body: body,
+                icon: "/favicon.ico",
+              });
+            }
+          } catch {
+            // Notification support varies (notably iOS Safari); keep the data stream alive.
           }
         }
       });
@@ -397,6 +440,7 @@ export default function AdminPage() {
     if (!auth) return;
     try {
       pushLog("AUTH_GATEWAY: Terminating master cryptographic token.", "warn");
+      await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
       await signOut(auth);
       router.push("/");
     } catch (error) {
@@ -404,18 +448,45 @@ export default function AdminPage() {
     }
   };
 
+  const revalidateProjects = () => {
+    void fetch("/api/revalidate", { method: "POST" }).catch((error) =>
+      console.error("Revalidation failed:", error),
+    );
+  };
+
+  const handleUnlock = async () => {
+    try {
+      if (!auth?.currentUser) throw new Error("No authenticated operator");
+      await reauthenticateWithPopup(auth.currentUser, new GoogleAuthProvider());
+      setIsLocked(false);
+      pushLog("SECURITY: Cryptographic bridge validated and re-opened by operator.", "success");
+    } catch (error) {
+      console.error("Idle unlock failed:", error);
+      pushLog("SECURITY: Re-authorization failed; terminal remains locked.", "crit");
+    }
+  };
+
   // --- UPDATED: Client-Side Direct Upload to Cloudinary ---
   const uploadToCloudinary = async (file: File) => {
-    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dutmc0rf6";
-    const uploadPreset = "cyber_portfolio_preset";
+    const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+    if (file.size > MAX_UPLOAD_BYTES) {
+      throw new Error("File exceeds the 10MB upload limit.");
+    }
+
+    const signResponse = await fetch("/api/upload/sign", { method: "POST" });
+    if (!signResponse.ok) throw new Error("Upload signing failed.");
+    const s = await signResponse.json();
 
     const data = new FormData();
     data.append("file", file);
-    data.append("upload_preset", uploadPreset);
-    data.append("folder", "cyber-portfolio");
+    data.append("api_key", s.apiKey);
+    data.append("timestamp", String(s.timestamp));
+    data.append("signature", s.signature);
+    data.append("folder", s.folder);
+    data.append("allowed_formats", s.allowed_formats);
 
     const response = await fetch(
-      `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`,
+      `https://api.cloudinary.com/v1_1/${s.cloudName}/auto/upload`,
       {
         method: "POST",
         body: data,
@@ -426,6 +497,9 @@ export default function AdminPage() {
 
     if (!response.ok) {
       throw new Error(resData.error?.message || "فشلت عملية الرفع المباشر إلى السحابة.");
+    }
+    if (typeof resData.bytes === "number" && resData.bytes > MAX_UPLOAD_BYTES) {
+      throw new Error("Uploaded file exceeds the 10MB upload limit.");
     }
 
     return resData.secure_url; 
@@ -438,25 +512,32 @@ export default function AdminPage() {
     pushLog("INJECTION: Preparing multiple-media asset cluster pipeline deployment...", "info");
 
     try {
-      const resolvedImages: string[] = [];
-      for (const f of imageFields) {
-        if (f.type === "file" && f.file) {
-          const url = await uploadToCloudinary(f.file);
-          if (url) resolvedImages.push(url);
-        } else if (f.type === "url" && f.url && f.url.trim() !== "") {
-          resolvedImages.push(f.url.trim());
-        }
+      const uploadTask = async (field: MediaField): Promise<string | null> => {
+        if (field.type === "file" && field.file) return uploadToCloudinary(field.file);
+        if (field.type === "url" && field.url.trim() !== "") return field.url.trim();
+        return null;
+      };
+
+      const [imageResults, videoResults] = await Promise.all([
+        Promise.allSettled(imageFields.map(uploadTask)),
+        Promise.allSettled(videoFields.map(uploadTask)),
+      ]);
+
+      const failed = [...imageResults, ...videoResults].filter(
+        (result): result is PromiseRejectedResult => result.status === "rejected",
+      );
+      if (failed.length > 0) {
+        failed.forEach(result => console.error("Asset upload failed:", result.reason));
+        throw new Error(`${failed.length} upload(s) failed`);
       }
 
-      const resolvedVideos: string[] = [];
-      for (const f of videoFields) {
-        if (f.type === "file" && f.file) {
-          const url = await uploadToCloudinary(f.file);
-          if (url) resolvedVideos.push(url);
-        } else if (f.type === "url" && f.url && f.url.trim() !== "") {
-          resolvedVideos.push(f.url.trim());
-        }
-      }
+      const fulfilledValues = <T,>(results: PromiseSettledResult<T>[]): T[] =>
+        results
+          .filter((result): result is PromiseFulfilledResult<T> => result.status === "fulfilled")
+          .map(result => result.value);
+
+      const resolvedImages = fulfilledValues(imageResults).filter((url): url is string => Boolean(url));
+      const resolvedVideos = fulfilledValues(videoResults).filter((url): url is string => Boolean(url));
 
       const primaryImage = resolvedImages[0] || "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=600";
       const primaryVideo = resolvedVideos[0] || ""; 
@@ -486,32 +567,38 @@ export default function AdminPage() {
         // --- UPDATE EXISTING PROJECT ---
         const projectRef = doc(db, "projects", editingProjectId);
         await updateDoc(projectRef, newProject);
+        revalidateProjects();
+        setEditingProjectId(null);
+        setSaveStatusMessage("MATRIX NODE UPDATED");
         setIsSuccess(true);
         pushLog(`UPDATE_SUCCESS: Modified system node cluster [${formData.title}]`, "success");
         fetchAdminData();
         
         setTimeout(() => {
           setIsSuccess(false);
-          setEditingProjectId(null);
+          revokeAllPreviewUrls();
           setFormData(initialFormState);
           setImageFields([]);
           setVideoFields([]);
-          setRotatingWords([{ id: Date.now(), text: "" }]);
+          setRotatingWords([{ id: 1, text: "" }]);
           setActiveTab("manage"); 
         }, 2000);
       } else {
         // --- ADD NEW PROJECT ---
         await addDoc(collection(db, "projects"), newProject);
+        revalidateProjects();
+        setSaveStatusMessage("MATRIX INJECTED");
         setIsSuccess(true);
         pushLog(`DEPLOY_SUCCESS: Injected system node cluster [${formData.title}]`, "success");
         fetchAdminData();
         
         setTimeout(() => {
           setIsSuccess(false);
+          revokeAllPreviewUrls();
           setFormData(initialFormState);
           setImageFields([]);
           setVideoFields([]);
-          setRotatingWords([{ id: Date.now(), text: "" }]);
+          setRotatingWords([{ id: 1, text: "" }]);
           setActiveTab("manage"); 
         }, 2000);
       }
@@ -532,14 +619,17 @@ export default function AdminPage() {
       onConfirm: async () => {
         try {
           const projectRef = doc(db, "projects", projectId);
-          const targetProject = projects.find(p => p.id === projectId);
-          if (!targetProject) return;
+          const snapshot = await getDoc(projectRef);
+          const storedReviews = (snapshot.data()?.reviews || []) as Review[];
+          const targetReview = storedReviews.find(r => r.id === reviewToRemove.id) || reviewToRemove;
 
-          const updatedReviews = targetProject.reviews.filter(r => r.id !== reviewToRemove.id);
-          await updateDoc(projectRef, { reviews: updatedReviews });
+          await updateDoc(projectRef, { reviews: arrayRemove(targetReview) });
+          revalidateProjects();
 
           setProjects(prev => 
-            prev.map(p => p.id === projectId ? { ...p, reviews: updatedReviews } : p)
+            prev.map(p => p.id === projectId
+              ? { ...p, reviews: p.reviews.filter(r => r.id !== reviewToRemove.id) }
+              : p)
           );
 
           showToast("REVIEW_PURGED_SUCCESSFULLY", "success");
@@ -561,6 +651,7 @@ export default function AdminPage() {
       onConfirm: async () => {
         try {
           await deleteDoc(doc(db, "projects", projectId));
+          revalidateProjects();
           setProjects(prev => prev.filter(p => p.id !== projectId));
           showToast("NODE_DELETED_SUCCESSFULLY", "success");
           pushLog(`DESTRUCT: Terminated node registration block for [${target?.title || projectId}]`, "warn");
@@ -648,7 +739,7 @@ export default function AdminPage() {
               <h2 className="text-red-500 font-black text-sm tracking-[0.2em] mb-2 uppercase">// TERMINAL_SESSION_LOCKED</h2>
               <p className="text-neutral-500 text-[10px] leading-relaxed mb-8 uppercase">Core security layer intervened due to operator dormancy. Re-authorization required to access datastream nodes.</p>
               <button 
-                onClick={() => { setIsLocked(false); pushLog("SECURITY: Cryptographic bridge validated and re-opened by operator.", "success"); }}
+                onClick={handleUnlock}
                 className="w-full bg-red-950/30 hover:bg-red-900 border border-red-800 text-red-400 hover:text-white text-[10px] py-3 rounded-xl tracking-widest transition-all font-bold uppercase cursor-pointer"
               >
                 [ RE_ESTABLISH_DECRYPT_BRIDGE ]
@@ -697,7 +788,7 @@ export default function AdminPage() {
           <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-md">
             <motion.div animate={{ rotateY: 360 }} transition={{ repeat: Infinity, duration: 2, ease: "linear" }} className={`w-16 h-16 mb-6 border-4 border-t-transparent border-r-transparent border-b-neutral-800 rounded-full ${accent.borderFull}`} />
             <h2 className="text-2xl font-black tracking-[0.2em] uppercase text-white mb-2">
-              {editingProjectId ? "MATRIX NODE UPDATED" : "MATRIX INJECTED"}
+              {saveStatusMessage}
             </h2>
             <p className={`font-mono text-[10px] tracking-widest ${accent.text}`}>DATABASE SYNCHRONIZED SUCCESSFULLY</p>
           </div>
