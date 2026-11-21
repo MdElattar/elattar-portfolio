@@ -569,6 +569,7 @@ export default function Navigation({
                   </div>
 
                   <button
+                    aria-label={item.label}
                     onClick={() => {
                       setIsContactOpen(false);
                       setIsCVOpen(false);
@@ -624,6 +625,7 @@ export default function Navigation({
               </div>
             </div>
             <button
+              aria-label="CREDENTIALS"
               onClick={() => {
                 setIsDrawerOpen(!isDrawerOpen);
                 setIsContactOpen(false);
@@ -662,6 +664,7 @@ export default function Navigation({
               </div>
             </div>
             <button
+              aria-label="DIGITAL_CV"
               onClick={() => {
                 setIsCVOpen(!isCVOpen);
                 setIsContactOpen(false);
@@ -716,6 +719,7 @@ export default function Navigation({
               </div>
             </div>
             <button
+              aria-label="COMM_LINK"
               onClick={() => {
                 setIsContactOpen(!isContactOpen);
                 setIsCVOpen(false);
