@@ -175,61 +175,21 @@ export default function ProjectsSection() {
 
   useEffect(() => {
     if (activeTab === "developer") {
-      const token = process.env.NEXT_PUBLIC_GITHUB_TOKEN;
-      const headers = token ? { Authorization: `token ${token}` } : {};
-
-      fetch("https://api.github.com/users/MdElattar", { headers })
+      fetch("/api/github")
         .then(res => {
-           if (!res.ok) throw new Error("GitHub API Error");
-           return res.json();
+          if (!res.ok) throw new Error("GitHub API Error");
+          return res.json();
         })
         .then(data => {
-          if(data.public_repos !== undefined) {
-            setGithubStats(prev => ({ ...prev, repos: data.public_repos, followers: data.followers || 0 }));
-          }
-        }).catch(e => console.error(e));
-
-      fetch("https://api.github.com/users/MdElattar/repos?per_page=100", { headers })
-        .then(res => {
-           if (!res.ok) throw new Error("GitHub API Error");
-           return res.json();
-        })
-        .then(data => {
-          if (Array.isArray(data)) {
-            const stars = data.reduce((acc: number, repo: Repo) => acc + repo.stargazers_count, 0);
-            const forks = data.reduce((acc: number, repo: Repo) => acc + repo.forks_count, 0);
-            setGithubStats(prev => ({ ...prev, stars, forks }));
-            
-            const sorted = [...data].sort((a: any, b: any) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-            setGithubRepos(sorted.slice(0, 2));
-          }
-        }).catch(e => console.error(e));
-
-      fetch("https://api.github.com/users/MdElattar/events/public?per_page=100", { headers })
-        .then(res => {
-           if (!res.ok) throw new Error("GitHub API Error");
-           return res.json();
-        })
-        .then(data => {
-          if (Array.isArray(data)) {
-            const dates = [...new Set(data.map((event: any) => new Date(event.created_at).toDateString()))];
-            let streak = 0;
-            let d = new Date();
-            if (dates.includes(d.toDateString())) streak++;
-            d.setDate(d.getDate() - 1);
-            while(dates.includes(d.toDateString())) {
-              streak++;
-              d.setDate(d.getDate() - 1);
-            }
-            setDynamicStreak(streak);
-
-            const yearMap: Record<number, number> = {};
-            data.forEach((ev: any) => {
-                const year = new Date(ev.created_at).getFullYear();
-                yearMap[year] = (yearMap[year] || 0) + 1;
-            });
-            setCommitsMap(yearMap);
-          }
+          setGithubStats({
+            repos: data.stats?.repos || 0,
+            followers: data.stats?.followers || 0,
+            stars: data.stats?.stars || 0,
+            forks: data.stats?.forks || 0,
+          });
+          setGithubRepos(Array.isArray(data.featured) ? data.featured : []);
+          setDynamicStreak(data.streak || 0);
+          setCommitsMap(data.commitsByYear || {});
         }).catch(e => console.error(e));
     }
   }, [activeTab]);

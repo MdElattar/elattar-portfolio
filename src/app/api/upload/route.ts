@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { v2 as cloudinary } from "cloudinary";
+import { requireAdminOrResponse } from "../../../lib/require-admin";
 
 // إعدادات الـ Route لضمان زيادة وقت الرفع والدعم الديناميكي
 export const maxDuration = 60;
@@ -13,6 +14,9 @@ cloudinary.config({
 });
 
 export async function POST(request: Request) {
+  const guard = await requireAdminOrResponse();
+  if (guard.response) return guard.response;
+
   try {
     const formData = await request.formData();
     const file = formData.get("file") as File;

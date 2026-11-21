@@ -407,16 +407,25 @@ export default function AdminPage() {
 
   // --- UPDATED: Client-Side Direct Upload to Cloudinary ---
   const uploadToCloudinary = async (file: File) => {
-    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dutmc0rf6";
-    const uploadPreset = "cyber_portfolio_preset";
+    const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+    if (file.size > MAX_UPLOAD_BYTES) {
+      throw new Error("File exceeds the 10MB upload limit.");
+    }
+
+    const signResponse = await fetch("/api/upload/sign", { method: "POST" });
+    if (!signResponse.ok) throw new Error("Upload signing failed.");
+    const s = await signResponse.json();
 
     const data = new FormData();
     data.append("file", file);
-    data.append("upload_preset", uploadPreset);
-    data.append("folder", "cyber-portfolio");
+    data.append("api_key", s.apiKey);
+    data.append("timestamp", String(s.timestamp));
+    data.append("signature", s.signature);
+    data.append("folder", s.folder);
+    data.append("allowed_formats", s.allowed_formats);
 
     const response = await fetch(
-      `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`,
+      `https://api.cloudinary.com/v1_1/${s.cloudName}/auto/upload`,
       {
         method: "POST",
         body: data,
@@ -427,6 +436,9 @@ export default function AdminPage() {
 
     if (!response.ok) {
       throw new Error(resData.error?.message || "فشلت عملية الرفع المباشر إلى السحابة.");
+    }
+    if (typeof resData.bytes === "number" && resData.bytes > MAX_UPLOAD_BYTES) {
+      throw new Error("Uploaded file exceeds the 10MB upload limit.");
     }
 
     return resData.secure_url; 
