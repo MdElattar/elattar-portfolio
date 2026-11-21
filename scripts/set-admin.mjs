@@ -1,4 +1,5 @@
-import admin from "firebase-admin";
+import { cert, getApp, getApps, initializeApp } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -8,34 +9,76 @@ if (!email) {
   process.exit(1);
 }
 
-let serviceAccount;
-try {
-  if (process.env.FIREBASE_ADMIN_PROJECT_ID && process.env.FIREBASE_ADMIN_CLIENT_EMAIL && process.env.FIREBASE_ADMIN_PRIVATE_KEY) {
-    serviceAccount = {
-      projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_ADMIN_PRIVATE_KEY.replace(/\\n/g, "\n"),
-    };
-  } else {
-    const localPath = join(process.cwd(), "service-account.json");
-    if (!existsSync(localPath)) throw new Error("service-account.json not found and FIREBASE_ADMIN_* env vars are missing.");
-    serviceAccount = JSON.parse(readFileSync(localPath, "utf8"));
+const envKeys = [
+  "FIREBASE_ADMIN_PROJECT_ID",
+  "FIREBASE_ADMIN_CLIENT_EMAIL",
+  "FIREBASE_ADMIN_PRIVATE_KEY",
+];
+
+function toServiceAccount(source, label) {
+  const projectId = source.projectId ?? source.project_id;
+  const clientEmail = source.clientEmail ?? source.client_email;
+  const rawPrivateKey = source.privateKey ?? source.private_key;
+
+  if (!projectId || !clientEmail || !rawPrivateKey) {
+    throw new Error(`Incomplete service account in ${label}.`);
   }
-} catch (error) {
-  console.error(error.message);
-  process.exit(1);
+
+  const privateKey = String(rawPrivateKey).replace(/\\n/g, "\n").trim();
+  if (!/-----BEGIN (?:RSA )?PRIVATE KEY-----/.test(privateKey)) {
+    throw new Error(`Invalid private key in ${label}.`);
+  }
+
+  return { projectId, clientEmail, privateKey };
 }
 
-admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+function loadServiceAccount() {
+  const providedEnvKeys = envKeys.filter((key) => process.env[key]);
+
+  if (providedEnvKeys.length === envKeys.length) {
+    return toServiceAccount(
+      {
+        projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_ADMIN_PRIVATE_KEY,
+      },
+      "FIREBASE_ADMIN_* environment variables",
+    );
+  }
+
+  if (providedEnvKeys.length > 0) {
+    const missing = envKeys.filter((key) => !process.env[key]).join(", ");
+    throw new Error(`Missing ${missing}. Provide all FIREBASE_ADMIN_* variables or none.`);
+  }
+
+  const localPath = join(process.cwd(), "scripts", "service-account.json");
+  if (!existsSync(localPath)) {
+    throw new Error(
+      "scripts/service-account.json not found and FIREBASE_ADMIN_* environment variables are missing.",
+    );
+  }
+
+  return toServiceAccount(JSON.parse(readFileSync(localPath, "utf8")), localPath);
+}
 
 try {
-  const user = await admin.auth().getUserByEmail(email);
-  await admin.auth().setCustomUserClaims(user.uid, {
+  const serviceAccount = loadServiceAccount();
+
+  if (getApps().length === 0) {
+    initializeApp({ credential: cert(serviceAccount) });
+  }
+
+  const auth = getAuth(getApp());
+  const user = await auth.getUserByEmail(email);
+  await auth.setCustomUserClaims(user.uid, {
     ...(user.customClaims || {}),
     admin: true,
   });
-  console.log(`admin claim set for ${user.uid} (${email}). Sign out and back in to refresh the token.`);
+
+  console.log(
+    `admin claim set for ${user.uid} (${email}). Sign out and back in to refresh the token.`,
+  );
 } catch (error) {
-  console.error("Failed to set admin claim:", error.message);
+  console.error("Failed to set admin claim:", error.message ?? error);
   process.exit(1);
 }
