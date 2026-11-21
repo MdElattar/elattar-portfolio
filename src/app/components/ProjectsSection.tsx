@@ -5,7 +5,7 @@ import { useRef, useState, useEffect, memo } from "react";
 import Image from "next/image";
 import SpaceBackground from "./SpaceBackground"; 
 import { db } from "../lib/firebase"; 
-import { collection, getDocs, doc, updateDoc, increment, arrayUnion, arrayRemove } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 
 // --- Interfaces & Types ---
 interface Review {
@@ -52,6 +52,22 @@ interface Repo {
 }
 
 const springConfig = { damping: 20, stiffness: 150, mass: 0.5 };
+
+type TrackType = "views" | "liveClicks" | "codeClicks";
+
+function trackProjectEvent(projectId: string, type: TrackType) {
+  if (type === "views" && typeof window !== "undefined") {
+    const key = `viewed:${projectId}`;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, "1");
+  }
+  void fetch("/api/track", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ projectId, type }),
+    keepalive: true,
+  }).catch((error) => console.error("Track request failed:", error));
+}
 
 export default function ProjectsSection() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -239,25 +255,25 @@ export default function ProjectsSection() {
     setMediaIndex(0);
     setProjects(prev => prev.map(p => p.id === project.id ? { ...p, views: (p.views || 0) + 1 } : p));
     setSelectedProject({ ...project, views: (project.views || 0) + 1 });
-    try { await updateDoc(doc(db, "projects", project.id), { views: increment(1) }); } catch (e) {}
+    trackProjectEvent(project.id, "views");
   };
 
   const logLiveClick = async (projectId: string) => {
     setProjects(prev => prev.map(p => p.id === projectId ? { ...p, liveClicks: (p.liveClicks || 0) + 1 } : p));
     if (selectedProject && selectedProject.id === projectId) setSelectedProject(prev => prev ? { ...prev, liveClicks: (prev.liveClicks || 0) + 1 } : null);
-    try { await updateDoc(doc(db, "projects", projectId), { liveClicks: increment(1) }); } catch (e) {}
+    trackProjectEvent(projectId, "liveClicks");
   };
 
   const logCodeClick = async (projectId: string) => {
     setProjects(prev => prev.map(p => p.id === projectId ? { ...p, codeClicks: (p.codeClicks || 0) + 1 } : p));
     if (selectedProject && selectedProject.id === projectId) setSelectedProject(prev => prev ? { ...prev, codeClicks: (prev.codeClicks || 0) + 1 } : null);
-    try { await updateDoc(doc(db, "projects", projectId), { codeClicks: increment(1) }); } catch (e) {}
+    trackProjectEvent(projectId, "codeClicks");
   };
 
   const handleAddReview = async (reviewData: Omit<Review, "id" | "createdAt">) => {
     if (!selectedProject) return;
-    const reviewId = "rev_" + Math.random().toString(36).substr(2, 9);
-    const finalReview: Review = { id: reviewId, ...reviewData, createdAt: new Date().toISOString() };
+    const tempId = `pending_${Math.random().toString(36).substr(2, 9)}`;
+    const finalReview: Review = { id: tempId, ...reviewData, createdAt: new Date().toISOString() };
     
     setProjects(prev => prev.map(p => {
       if (p.id === selectedProject.id) {
@@ -267,10 +283,32 @@ export default function ProjectsSection() {
       }
       return p;
     }));
-    const updatedMyIds = [...myCreatedReviewIds, reviewId];
+    const updatedMyIds = [...myCreatedReviewIds, tempId];
     setMyCreatedReviewIds(updatedMyIds);
     localStorage.setItem("my_matrix_reviews", JSON.stringify(updatedMyIds));
-    try { await updateDoc(doc(db, "projects", selectedProject.id), { reviews: arrayUnion(finalReview) }); } catch (error) {}
+
+    try {
+      const response = await fetch("/api/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: selectedProject.id, ...reviewData }),
+      });
+      if (!response.ok) throw new Error("Review rejected");
+      const { review } = (await response.json()) as { review: Review };
+
+      setProjects(prev => prev.map(p => p.id === selectedProject.id
+        ? { ...p, reviews: (p.reviews || []).map(r => r.id === tempId ? review : r) }
+        : p));
+      setSelectedProject(prev => prev && prev.id === selectedProject.id
+        ? { ...prev, reviews: (prev.reviews || []).map(r => r.id === tempId ? review : r) }
+        : prev);
+
+      const serverIds = updatedMyIds.map(id => id === tempId ? review.id : id);
+      setMyCreatedReviewIds(serverIds);
+      localStorage.setItem("my_matrix_reviews", JSON.stringify(serverIds));
+    } catch (error) {
+      console.error("Failed to save review:", error);
+    }
   };
 
   const handleDeleteReview = async (review: Review) => {
@@ -286,11 +324,19 @@ export default function ProjectsSection() {
       return p;
     }));
     try {
-      await updateDoc(doc(db, "projects", selectedProject.id), { reviews: arrayRemove(review) });
+      const response = await fetch("/api/review", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: selectedProject.id, reviewId: review.id }),
+      });
+      if (!response.ok) throw new Error("Review purge rejected");
+
       const updatedMyIds = myCreatedReviewIds.filter(id => id !== review.id);
       setMyCreatedReviewIds(updatedMyIds);
       localStorage.setItem("my_matrix_reviews", JSON.stringify(updatedMyIds));
-    } catch (error) {}
+    } catch (error) {
+      console.error("Failed to delete review:", error);
+    }
   };
 
   const filteredProjects = projects.filter(project => {
