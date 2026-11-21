@@ -36,16 +36,49 @@ export default function MatrixRain() {
       }
     };
 
-    const interval = setInterval(draw, 35);
+    let raf = 0;
+    let last = 0;
+    let isRunning = true;
+
+    const loop = (time: number) => {
+      if (!isRunning || document.hidden) return;
+      raf = requestAnimationFrame(loop);
+      // Keep the original ~35ms cadence while using rAF instead of setInterval.
+      if (time - last < 35) return;
+      last = time;
+      draw();
+    };
+
+    const stop = () => {
+      isRunning = false;
+      cancelAnimationFrame(raf);
+    };
+
+    const start = () => {
+      if (isRunning) return;
+      isRunning = true;
+      last = 0;
+      raf = requestAnimationFrame(loop);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) stop();
+      else start();
+    };
+
     const handleResize = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
     };
+
+    raf = requestAnimationFrame(loop);
     window.addEventListener("resize", handleResize);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      clearInterval(interval);
+      stop();
       window.removeEventListener("resize", handleResize);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 

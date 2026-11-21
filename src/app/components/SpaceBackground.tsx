@@ -13,6 +13,7 @@ export default function SpaceBackground() {
 
     let animationFrameId: number;
     let resizeTimeout: NodeJS.Timeout;
+    let isRunning = true;
 
     // تريكة الـ HD Rendering: ضبط الأبعاد بناءً على كثافة بكسلات الشاشة (DPR)
     const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
@@ -83,6 +84,8 @@ export default function SpaceBackground() {
 
     // الـ Render Loop الرئيسي عالي الكفاءة
     const render = () => {
+      if (!isRunning || document.hidden) return;
+
       // تفريغ الخلفية بلون أسود داكن ونقي
       ctx.fillStyle = "#000000";
       ctx.fillRect(0, 0, width, height);
@@ -139,14 +142,27 @@ export default function SpaceBackground() {
       animationFrameId = requestAnimationFrame(render);
     };
 
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        isRunning = false;
+        cancelAnimationFrame(animationFrameId);
+      } else if (!isRunning) {
+        isRunning = true;
+        render();
+      }
+    };
+
     render();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     // Memory Leak Cleanup Guard
     return () => {
+      isRunning = false;
       cancelAnimationFrame(animationFrameId);
       clearTimeout(resizeTimeout);
       window.removeEventListener("mousemove", handleMouseMoveGlobal);
       window.removeEventListener("resize", resizeContainer);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 
