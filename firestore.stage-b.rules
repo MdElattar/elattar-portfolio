@@ -1,0 +1,32 @@
+rules_version = '2';
+
+// Stage B: final locked-down rules. Deploy only after the public counter and
+// review writes have been moved to API routes. Admin SDK requests bypass these
+// rules, so server routes keep working with `allow write: if isAdmin()` absent
+// for public clients.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null && request.auth.token.admin == true;
+    }
+
+    match /projects/{projectId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /bookings/{bookingId} {
+      allow create: if request.resource.data.keys().hasOnly(['type', 'createdAt', 'payload'])
+        && request.resource.data.type in ['CALL_RESERVATION', 'DIRECT_MESSAGE']
+        && request.resource.data.createdAt is string
+        && request.resource.data.payload is map
+        && request.resource.data.payload.email is string
+        && request.resource.data.payload.email.size() < 200;
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

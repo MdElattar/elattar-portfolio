@@ -11,13 +11,15 @@
     "design:guard": "node scripts/design-guard.mjs",
     "design:guard:update": "node scripts/design-guard.mjs --update",
     "test:visual": "playwright test",
-    "test:visual:update": "playwright test --update-snapshots"
+    "test:visual:update": "playwright test --update-snapshots",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-cyber-portfolio \"node --test --test-concurrency=1 tests/firestore*.rules.test.mjs\""
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
     "cloudinary": "^2.10.0",
     "firebase": "^12.13.0",
+    "firebase-admin": "^14.5.1",
     "framer-motion": "^12.40.0",
     "gsap": "^3.15.0",
     "next": "16.2.6",
@@ -26,6 +28,7 @@
     "three": "^0.184.0"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@playwright/test": "^1.65.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
@@ -34,6 +37,7 @@
     "@types/three": "^0.184.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
+    "firebase-tools": "^15.37.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
